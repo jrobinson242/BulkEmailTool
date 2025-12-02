@@ -48,7 +48,8 @@ A full-stack application for sending personalized bulk emails through Microsoft 
 
 **Frontend:**
 - React 18
-- React Router
+- Vite (build tool)
+- React Router 7
 - Axios for API calls
 - Azure MSAL for authentication
 
@@ -149,10 +150,10 @@ FRONTEND_URL=http://localhost:3000
 Create `frontend/.env`:
 
 ```env
-REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_AZURE_CLIENT_ID=your-client-id
-REACT_APP_AZURE_TENANT_ID=your-tenant-id
-REACT_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+VITE_API_URL=http://localhost:5000/api
+VITE_AZURE_CLIENT_ID=your-client-id
+VITE_AZURE_TENANT_ID=your-tenant-id
+VITE_REDIRECT_URI=http://localhost:3000/auth/callback
 ```
 
 ## 🚀 Running the Application
@@ -168,7 +169,7 @@ npm run dev
 **Terminal 2 - Frontend:**
 ```bash
 cd frontend
-npm start
+npm run dev
 ```
 
 The application will be available at:

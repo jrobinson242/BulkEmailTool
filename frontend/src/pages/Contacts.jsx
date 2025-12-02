@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { contactsAPI } from '../services/api';
+import { contactsAPI } from '../services/api.jsx';
 
 const Contacts = () => {
   const [contacts, setContacts] = useState([]);

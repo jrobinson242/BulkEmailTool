@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { templatesAPI } from '../services/api';
+import { templatesAPI } from '../services/api.jsx';
 
 const Templates = () => {
   const [templates, setTemplates] = useState([]);

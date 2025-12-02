@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { campaignsAPI, analyticsAPI } from '../services/api';
+import { campaignsAPI, analyticsAPI } from '../services/api.jsx';
 
 const CampaignDetail = () => {
   const { id } = useParams();

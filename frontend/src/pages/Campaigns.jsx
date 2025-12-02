@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { campaignsAPI, templatesAPI, contactsAPI } from '../services/api';
+import { campaignsAPI, templatesAPI, contactsAPI } from '../services/api.jsx';
 
 const Campaigns = () => {
   const [campaigns, setCampaigns] = useState([]);

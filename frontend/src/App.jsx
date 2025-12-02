@@ -1,14 +1,14 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import Navbar from './components/Navbar';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Contacts from './pages/Contacts';
-import Templates from './pages/Templates';
-import Campaigns from './pages/Campaigns';
-import CampaignDetail from './pages/CampaignDetail';
-import PrivateRoute from './components/PrivateRoute';
+import { AuthProvider } from './contexts/AuthContext.jsx';
+import Navbar from './components/Navbar.jsx';
+import Login from './pages/Login.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Contacts from './pages/Contacts.jsx';
+import Templates from './pages/Templates.jsx';
+import Campaigns from './pages/Campaigns.jsx';
+import CampaignDetail from './pages/CampaignDetail.jsx';
+import PrivateRoute from './components/PrivateRoute.jsx';
 
 function App() {
   return (

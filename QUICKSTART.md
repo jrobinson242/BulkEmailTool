@@ -28,8 +28,10 @@ BulkEmailTool/
 │   │   ├── contexts/               # Auth context
 │   │   ├── pages/                  # Page components
 │   │   ├── services/               # API services
-│   │   ├── App.js
-│   │   └── index.js
+│   │   ├── App.jsx
+│   │   └── index.jsx
+│   ├── index.html
+│   ├── vite.config.js
 │   ├── package.json
 │   ├── .env.example
 │   └── .gitignore
@@ -76,7 +78,7 @@ BulkEmailTool/
 
 - ✅ **Dependencies**: All npm packages installed
   - Backend: 586 packages
-  - Frontend: 1322 packages
+  - Frontend: 142 packages (Vite - 0 vulnerabilities!)
 
 ## 🚀 Next Steps
 
@@ -107,7 +109,7 @@ cp backend/.env.example backend/.env
 **Frontend** (`frontend/.env`):
 ```bash
 cp frontend/.env.example frontend/.env
-# Edit frontend/.env with your Azure credentials
+# Edit frontend/.env with your Azure credentials (use VITE_ prefix)
 ```
 
 ### 3. Start Development Servers
@@ -121,7 +123,7 @@ npm run dev
 **Terminal 2 - Frontend:**
 ```bash
 cd frontend
-npm start
+npm run dev
 ```
 
 ### 4. Test the Application
@@ -203,7 +205,8 @@ Your templates support:
 
 **Frontend:**
 - React 18
-- React Router v6
+- Vite (fast build tool)
+- React Router v7
 - Axios
 - Azure MSAL
 - Modern CSS
