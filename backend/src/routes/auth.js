@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 // Login endpoint - redirects to Azure AD
 router.get('/login', (req, res) => {
@@ -18,6 +19,7 @@ router.get('/login', (req, res) => {
 router.post('/callback', async (req, res) => {
   try {
     const { code } = req.body;
+    logger.info('Callback received', { hasCode: !!code });
     
     const tokenEndpoint = `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`;
     const params = new URLSearchParams({
@@ -28,6 +30,7 @@ router.post('/callback', async (req, res) => {
       grant_type: 'authorization_code'
     });
 
+    logger.info('Exchanging code for token');
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -35,9 +38,16 @@ router.post('/callback', async (req, res) => {
     });
 
     const tokens = await response.json();
+    logger.info('Token response received', { 
+      hasAccessToken: !!tokens.access_token,
+      hasError: !!tokens.error,
+      error: tokens.error,
+      errorDescription: tokens.error_description
+    });
     
     if (tokens.error) {
-      throw new Error(tokens.error_description);
+      logger.error('Token exchange failed', { error: tokens.error, description: tokens.error_description });
+      throw new Error(tokens.error_description || tokens.error);
     }
 
     res.json({
@@ -46,6 +56,7 @@ router.post('/callback', async (req, res) => {
       expiresIn: tokens.expires_in
     });
   } catch (error) {
+    logger.error('Callback error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });

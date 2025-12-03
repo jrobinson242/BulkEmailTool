@@ -60,6 +60,18 @@ const Campaigns = () => {
     }
   };
 
+  const handleStop = async (id) => {
+    if (window.confirm('Are you sure you want to stop this campaign?')) {
+      try {
+        await campaignsAPI.stop(id);
+        alert('Campaign stopped successfully!');
+        await loadData();
+      } catch (err) {
+        alert('Failed to stop campaign: ' + err.response?.data?.error);
+      }
+    }
+  };
+
   const toggleContact = (contactId) => {
     setFormData(prev => ({
       ...prev,
@@ -173,18 +185,29 @@ const Campaigns = () => {
                   <td>{campaign.TotalSent || 0}</td>
                   <td>{campaign.SuccessCount || 0}</td>
                   <td>
-                    <Link to={`/campaigns/${campaign.CampaignId}`} className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: '12px', marginRight: '5px' }}>
-                      View
-                    </Link>
-                    {campaign.Status === 'draft' && (
-                      <button 
-                        onClick={() => handleSend(campaign.CampaignId)} 
-                        className="btn btn-primary"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
-                      >
-                        Send
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <Link to={`/campaigns/${campaign.CampaignId}`} className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: '12px' }}>
+                        View
+                      </Link>
+                      {campaign.Status === 'draft' && (
+                        <button 
+                          onClick={() => handleSend(campaign.CampaignId)} 
+                          className="btn btn-primary"
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                        >
+                          Send
+                        </button>
+                      )}
+                      {campaign.Status === 'sending' && (
+                        <button 
+                          onClick={() => handleStop(campaign.CampaignId)} 
+                          className="btn btn-danger"
+                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                        >
+                          Stop
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

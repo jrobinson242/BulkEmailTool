@@ -68,7 +68,7 @@ CREATE TABLE CampaignContacts (
     CampaignId INT NOT NULL,
     ContactId INT NOT NULL,
     FOREIGN KEY (CampaignId) REFERENCES Campaigns(CampaignId) ON DELETE CASCADE,
-    FOREIGN KEY (ContactId) REFERENCES Contacts(ContactId) ON DELETE CASCADE,
+    FOREIGN KEY (ContactId) REFERENCES Contacts(ContactId) ON DELETE NO ACTION,
     UNIQUE (CampaignId, ContactId)
 );
 

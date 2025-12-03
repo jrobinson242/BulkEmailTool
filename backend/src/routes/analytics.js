@@ -10,8 +10,8 @@ router.get('/campaign/:id', authenticateToken, async (req, res) => {
     const query = `
       SELECT 
         COUNT(*) as TotalSent,
-        SUM(CASE WHEN Status = 'sent' THEN 1 ELSE 0 END) as SuccessCount,
-        SUM(CASE WHEN Status = 'failed' THEN 1 ELSE 0 END) as FailedCount,
+        SUM(CASE WHEN cl.Status = 'sent' THEN 1 ELSE 0 END) as SuccessCount,
+        SUM(CASE WHEN cl.Status = 'failed' THEN 1 ELSE 0 END) as FailedCount,
         SUM(CASE WHEN cl.Opened = 1 THEN 1 ELSE 0 END) as OpenedCount,
         SUM(CASE WHEN cl.Clicked = 1 THEN 1 ELSE 0 END) as ClickedCount
       FROM CampaignLogs cl

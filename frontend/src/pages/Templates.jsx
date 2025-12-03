@@ -5,6 +5,8 @@ const Templates = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [viewingTemplate, setViewingTemplate] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     subject: '',
@@ -31,13 +33,51 @@ const Templates = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await templatesAPI.create(formData);
+      if (editingId) {
+        await templatesAPI.update(editingId, formData);
+      } else {
+        await templatesAPI.create(formData);
+      }
       setShowForm(false);
+      setEditingId(null);
       setFormData({ name: '', subject: '', body: '', description: '' });
       await loadTemplates();
     } catch (err) {
-      alert('Failed to create template: ' + err.response?.data?.error);
+      alert(`Failed to ${editingId ? 'update' : 'create'} template: ` + err.response?.data?.error);
     }
+  };
+
+  const handleView = async (id) => {
+    try {
+      const response = await templatesAPI.getOne(id);
+      setViewingTemplate(response.data);
+    } catch (err) {
+      alert('Failed to load template details');
+    }
+  };
+
+  const handleEdit = async (id) => {
+    try {
+      const response = await templatesAPI.getOne(id);
+      const template = response.data;
+      setFormData({
+        name: template.Name,
+        subject: template.Subject,
+        body: template.Body,
+        description: template.Description || ''
+      });
+      setEditingId(id);
+      setShowForm(true);
+      setViewingTemplate(null);
+    } catch (err) {
+      alert('Failed to load template for editing');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setFormData({ name: '', subject: '', body: '', description: '' });
   };
 
   const handleDelete = async (id) => {
@@ -57,14 +97,14 @@ const Templates = () => {
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>Email Templates</h1>
-        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+        <button onClick={() => editingId ? handleCancelEdit() : setShowForm(!showForm)} className="btn btn-primary">
           {showForm ? 'Cancel' : 'Create Template'}
         </button>
       </div>
 
       {showForm && (
         <div className="card">
-          <h2>New Template</h2>
+          <h2>{editingId ? 'Edit Template' : 'New Template'}</h2>
           <form onSubmit={handleSubmit}>
             <input
               type="text"
@@ -93,7 +133,16 @@ const Templates = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
-            <button type="submit" className="btn btn-primary">Create Template</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button type="submit" className="btn btn-primary">
+                {editingId ? 'Update Template' : 'Create Template'}
+              </button>
+              {editingId && (
+                <button type="button" onClick={handleCancelEdit} className="btn" style={{ backgroundColor: '#6c757d', color: 'white' }}>
+                  Cancel
+                </button>
+              )}
+            </div>
           </form>
           <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
             <h3 style={{ marginBottom: '10px' }}>Available Placeholders:</h3>
@@ -123,13 +172,29 @@ const Templates = () => {
                   <td>{template.Subject}</td>
                   <td>{template.Description}</td>
                   <td>
-                    <button 
-                      onClick={() => handleDelete(template.TemplateId)} 
-                      className="btn btn-danger"
-                      style={{ padding: '5px 10px', fontSize: '12px' }}
-                    >
-                      Delete
-                    </button>
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      <button 
+                        onClick={() => handleView(template.TemplateId)} 
+                        className="btn btn-primary"
+                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                      >
+                        View
+                      </button>
+                      <button 
+                        onClick={() => handleEdit(template.TemplateId)} 
+                        className="btn"
+                        style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ffc107', color: '#000' }}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(template.TemplateId)} 
+                        className="btn btn-danger"
+                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -137,6 +202,97 @@ const Templates = () => {
           </table>
         )}
       </div>
+
+      {viewingTemplate && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="card" style={{
+            maxWidth: '800px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            margin: 0
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2>Template Details</h2>
+              <button 
+                onClick={() => setViewingTemplate(null)} 
+                className="btn"
+                style={{ backgroundColor: '#6c757d', color: 'white' }}
+              >
+                Close
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <strong>Name:</strong>
+              <p style={{ marginTop: '5px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                {viewingTemplate.Name}
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <strong>Subject:</strong>
+              <p style={{ marginTop: '5px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                {viewingTemplate.Subject}
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <strong>Body:</strong>
+              <pre style={{ 
+                marginTop: '5px', 
+                padding: '10px', 
+                backgroundColor: '#f8f9fa', 
+                borderRadius: '4px',
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+                fontFamily: 'inherit'
+              }}>
+                {viewingTemplate.Body}
+              </pre>
+            </div>
+            
+            {viewingTemplate.Description && (
+              <div style={{ marginBottom: '15px' }}>
+                <strong>Description:</strong>
+                <p style={{ marginTop: '5px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                  {viewingTemplate.Description}
+                </p>
+              </div>
+            )}
+            
+            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+              <button 
+                onClick={() => {
+                  handleEdit(viewingTemplate.TemplateId);
+                }} 
+                className="btn"
+                style={{ backgroundColor: '#ffc107', color: '#000' }}
+              >
+                Edit Template
+              </button>
+              <button 
+                onClick={() => setViewingTemplate(null)} 
+                className="btn"
+                style={{ backgroundColor: '#6c757d', color: 'white' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

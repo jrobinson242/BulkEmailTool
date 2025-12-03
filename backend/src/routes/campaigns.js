@@ -18,7 +18,7 @@ router.get('/', authenticateToken, async (req, res) => {
       LEFT JOIN Templates t ON c.TemplateId = t.TemplateId
       LEFT JOIN CampaignLogs cl ON c.CampaignId = cl.CampaignId
       WHERE c.UserId = @userId
-      GROUP BY c.CampaignId, c.Name, c.Status, c.ScheduledAt, c.CreatedAt, 
+      GROUP BY c.CampaignId, c.Name, c.Status, c.ScheduledAt, c.CreatedAt, c.CompletedAt,
                c.UserId, c.TemplateId, t.Name, t.Subject
       ORDER BY c.CreatedAt DESC
     `;
@@ -33,6 +33,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // Get single campaign with details
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
+    logger.info('Fetching campaign details', { campaignId: req.params.id, userId: req.userId });
     const query = `
       SELECT c.*, t.Name as TemplateName, t.Subject, t.Body
       FROM Campaigns c
@@ -44,12 +45,15 @@ router.get('/:id', authenticateToken, async (req, res) => {
       userId: req.userId
     });
     
+    logger.info('Campaign query result', { count: result.recordset.length });
+    
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
     
     res.json(result.recordset[0]);
   } catch (error) {
+    logger.error('Failed to fetch campaign details', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -107,6 +111,84 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json(campaign);
   } catch (error) {
     logger.error('Failed to create campaign', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update campaign
+router.put('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { name, templateId, contactIds } = req.body;
+    const campaignId = req.params.id;
+    
+    // Verify campaign exists and belongs to user
+    const checkQuery = `
+      SELECT * FROM Campaigns 
+      WHERE CampaignId = @campaignId AND UserId = @userId AND Status = 'draft'
+    `;
+    const checkResult = await executeQuery(checkQuery, {
+      campaignId,
+      userId: req.userId
+    });
+    
+    if (checkResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Campaign not found or cannot be edited' });
+    }
+    
+    // Update campaign
+    const updateQuery = `
+      UPDATE Campaigns 
+      SET Name = @name, TemplateId = @templateId
+      WHERE CampaignId = @campaignId AND UserId = @userId
+    `;
+    await executeQuery(updateQuery, {
+      campaignId,
+      userId: req.userId,
+      name,
+      templateId
+    });
+    
+    // Update contacts if provided
+    if (contactIds && Array.isArray(contactIds)) {
+      // Remove existing contacts
+      await executeQuery(
+        `DELETE FROM CampaignContacts WHERE CampaignId = @campaignId`,
+        { campaignId }
+      );
+      
+      // Add new contacts
+      if (contactIds.length > 0) {
+        const contactsQuery = `
+          INSERT INTO CampaignContacts (CampaignId, ContactId, Status, CreatedAt)
+          VALUES ${contactIds.map((_, i) => `(@campaignId, @contactId${i}, 'pending', GETDATE())`).join(', ')}
+        `;
+        
+        const params = { campaignId };
+        contactIds.forEach((id, i) => {
+          params[`contactId${i}`] = id;
+        });
+        
+        await executeQuery(contactsQuery, params);
+      }
+    }
+    
+    logger.info(`Campaign updated: ${campaignId}`);
+    
+    // Return updated campaign
+    const query = `
+      SELECT c.*, t.Name as TemplateName, t.Subject, t.Body
+      FROM Campaigns c
+      LEFT JOIN Templates t ON c.TemplateId = t.TemplateId
+      WHERE c.CampaignId = @campaignId AND c.UserId = @userId
+    `;
+    const result = await executeQuery(query, {
+      campaignId,
+      userId: req.userId
+    });
+    
+    res.json(result.recordset[0]);
+  } catch (error) {
+    logger.error('Failed to update campaign', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
@@ -220,6 +302,73 @@ router.get('/:id/logs', authenticateToken, async (req, res) => {
     
     res.json(result.recordset);
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get campaign contacts
+router.get('/:id/contacts', authenticateToken, async (req, res) => {
+  try {
+    const query = `
+      SELECT c.*
+      FROM Contacts c
+      JOIN CampaignContacts cc ON c.ContactId = cc.ContactId
+      JOIN Campaigns cam ON cc.CampaignId = cam.CampaignId
+      WHERE cc.CampaignId = @campaignId AND cam.UserId = @userId
+    `;
+    
+    const result = await executeQuery(query, {
+      campaignId: req.params.id,
+      userId: req.userId
+    });
+    
+    res.json(result.recordset);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Stop/Cancel campaign
+router.post('/:id/stop', authenticateToken, async (req, res) => {
+  try {
+    const campaignId = req.params.id;
+    
+    // Verify campaign belongs to user
+    const checkQuery = `
+      SELECT Status FROM Campaigns 
+      WHERE CampaignId = @campaignId AND UserId = @userId
+    `;
+    const checkResult = await executeQuery(checkQuery, {
+      campaignId,
+      userId: req.userId
+    });
+    
+    if (checkResult.recordset.length === 0) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+    
+    const currentStatus = checkResult.recordset[0].Status;
+    
+    if (currentStatus === 'completed') {
+      return res.status(400).json({ error: 'Cannot stop a completed campaign' });
+    }
+    
+    // Update campaign status to draft
+    const updateQuery = `
+      UPDATE Campaigns 
+      SET Status = 'draft'
+      WHERE CampaignId = @campaignId AND UserId = @userId
+    `;
+    
+    await executeQuery(updateQuery, {
+      campaignId,
+      userId: req.userId
+    });
+    
+    logger.info(`Campaign ${campaignId} stopped by user ${req.userId}`);
+    res.json({ message: 'Campaign stopped successfully', status: 'draft' });
+  } catch (error) {
+    logger.error('Failed to stop campaign', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });

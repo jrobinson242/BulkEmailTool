@@ -92,8 +92,11 @@ export const campaignsAPI = {
   getAll: () => api.get('/campaigns'),
   getOne: (id) => api.get(`/campaigns/${id}`),
   create: (data) => api.post('/campaigns', data),
+  update: (id, data) => api.put(`/campaigns/${id}`, data),
   send: (id) => api.post(`/campaigns/${id}/send`),
+  stop: (id) => api.post(`/campaigns/${id}/stop`),
   getLogs: (id) => api.get(`/campaigns/${id}/logs`),
+  getContacts: (id) => api.get(`/campaigns/${id}/contacts`),
   delete: (id) => api.delete(`/campaigns/${id}`)
 };
 
