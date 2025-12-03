@@ -49,6 +49,18 @@ class QueueService {
       throw error;
     }
   }
+
+  async clearQueue() {
+    try {
+      await this.initialize();
+      await this.queueClient.clearMessages();
+      logger.info('Queue cleared');
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to clear queue', { error: error.message });
+      throw error;
+    }
+  }
 }
 
 module.exports = new QueueService();

@@ -64,10 +64,12 @@ export const authAPI = {
 // Contacts API
 export const contactsAPI = {
   getAll: () => api.get('/contacts'),
-  sync: () => api.post('/contacts/sync'),
+  getFolders: () => api.get('/contacts/folders'),
+  sync: (folderIds) => api.post('/contacts/sync', { folderIds }),
   create: (data) => api.post('/contacts', data),
   update: (id, data) => api.put(`/contacts/${id}`, data),
   delete: (id) => api.delete(`/contacts/${id}`),
+  bulkDelete: () => api.delete('/contacts'),
   import: (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -106,6 +108,11 @@ export const analyticsAPI = {
   getCampaignStats: (id) => api.get(`/analytics/campaign/${id}`),
   trackClick: (campaignId, contactId) => 
     api.post('/analytics/click', { campaignId, contactId })
+};
+
+// Queue API
+export const queueAPI = {
+  clear: () => api.delete('/queue/clear')
 };
 
 export default api;

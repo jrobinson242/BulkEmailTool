@@ -72,6 +72,18 @@ const Campaigns = () => {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
+      try {
+        await campaignsAPI.delete(id);
+        alert('Campaign deleted successfully!');
+        await loadData();
+      } catch (err) {
+        alert('Failed to delete campaign: ' + err.response?.data?.error);
+      }
+    }
+  };
+
   const toggleContact = (contactId) => {
     setFormData(prev => ({
       ...prev,
@@ -207,6 +219,13 @@ const Campaigns = () => {
                           Stop
                         </button>
                       )}
+                      <button 
+                        onClick={() => handleDelete(campaign.CampaignId)} 
+                        className="btn btn-danger"
+                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>

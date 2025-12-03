@@ -72,8 +72,9 @@ class TemplateService {
    * Add tracking pixel to email body
    */
   static addTrackingPixel(body, trackingId) {
-    const trackingUrl = `${process.env.FRONTEND_URL}/api/analytics/track/${trackingId}`;
-    const pixel = `<img src="${trackingUrl}" width="1" height="1" alt="" />`;
+    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const trackingUrl = `${backendUrl}/api/analytics/track/${trackingId}`;
+    const pixel = `<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none;" />`;
     
     // Insert before closing body tag or at the end
     if (body.includes('</body>')) {

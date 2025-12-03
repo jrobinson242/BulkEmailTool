@@ -10,6 +10,7 @@ const CampaignDetail = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [campaignContacts, setCampaignContacts] = useState([]);
@@ -18,6 +19,7 @@ const CampaignDetail = () => {
     templateId: '',
     contactIds: []
   });
+  const [showEmailContent, setShowEmailContent] = useState(false);
 
   useEffect(() => {
     loadCampaignData();
@@ -26,19 +28,22 @@ const CampaignDetail = () => {
   const loadCampaignData = async () => {
     try {
       setLoading(true);
-      const [campaignRes, statsRes, logsRes] = await Promise.all([
+      const [campaignRes, statsRes, logsRes, campaignContactsRes] = await Promise.all([
         campaignsAPI.getOne(id),
         analyticsAPI.getCampaignStats(id),
-        campaignsAPI.getLogs(id)
+        campaignsAPI.getLogs(id),
+        campaignsAPI.getContacts(id)
       ]);
       setCampaign(campaignRes.data);
       setStats(statsRes.data);
       setLogs(logsRes.data);
+      const campaignContactsData = campaignContactsRes.data || [];
+      setCampaignContacts(campaignContactsData);
       
       setFormData({
         name: campaignRes.data.Name,
         templateId: campaignRes.data.TemplateId,
-        contactIds: []
+        contactIds: campaignContactsData.map(c => c.ContactId)
       });
     } catch (err) {
       console.error('Failed to load campaign data', err);
@@ -49,6 +54,7 @@ const CampaignDetail = () => {
 
   const loadEditData = async () => {
     try {
+      setEditLoading(true);
       const [templatesRes, contactsRes, campaignContactsRes] = await Promise.all([
         templatesAPI.getAll(),
         contactsAPI.getAll(),
@@ -57,14 +63,19 @@ const CampaignDetail = () => {
       
       setTemplates(templatesRes.data);
       setContacts(contactsRes.data);
-      setCampaignContacts(campaignContactsRes);
+      const campaignContactsData = campaignContactsRes.data || [];
+      setCampaignContacts(campaignContactsData);
       
       setFormData(prev => ({
         ...prev,
-        contactIds: campaignContactsRes.map(c => c.ContactId)
+        contactIds: campaignContactsData.map(c => c.ContactId)
       }));
     } catch (err) {
       console.error('Failed to load edit data', err);
+      alert('Failed to load edit data: ' + (err.response?.data?.error || err.message));
+      setIsEditing(false);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -131,7 +142,7 @@ const CampaignDetail = () => {
   const selectAll = () => {
     setFormData(prev => ({
       ...prev,
-      contactIds: contacts.map(c => c.ContactId)
+      contactIds: (contacts || []).map(c => c.ContactId)
     }));
   };
 
@@ -166,6 +177,11 @@ const CampaignDetail = () => {
       </div>
 
       {isEditing ? (
+        editLoading ? (
+          <div className="card">
+            <div className="loading">Loading edit data...</div>
+          </div>
+        ) : (
         <div className="card">
           <h2>Edit Campaign</h2>
           <div>
@@ -183,7 +199,8 @@ const CampaignDetail = () => {
               value={formData.templateId}
               onChange={(e) => setFormData({ ...formData, templateId: e.target.value })}
             >
-              {templates.map(t => (
+              <option value="">Select a template</option>
+              {(templates || []).map(t => (
                 <option key={t.TemplateId} value={t.TemplateId}>{t.Name}</option>
               ))}
             </select>
@@ -197,19 +214,23 @@ const CampaignDetail = () => {
               </button>
             </div>
             <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
-              {contacts.map(contact => (
-                <div key={contact.ContactId} style={{ padding: '5px 0' }}>
-                  <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={formData.contactIds.includes(contact.ContactId)}
-                      onChange={() => toggleContact(contact.ContactId)}
-                      style={{ marginRight: '10px', width: 'auto' }}
-                    />
-                    {contact.FirstName} {contact.LastName} ({contact.Email})
-                  </label>
-                </div>
-              ))}
+              {(contacts || []).length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#666' }}>No contacts available. Please add or sync contacts first.</p>
+              ) : (
+                (contacts || []).map(contact => (
+                  <div key={contact.ContactId} style={{ padding: '5px 0' }}>
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.contactIds.includes(contact.ContactId)}
+                        onChange={() => toggleContact(contact.ContactId)}
+                        style={{ marginRight: '10px', width: 'auto' }}
+                      />
+                      {contact.FirstName} {contact.LastName} ({contact.Email})
+                    </label>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -218,6 +239,7 @@ const CampaignDetail = () => {
             <button onClick={handleCancelEdit} className="btn btn-secondary">Cancel</button>
           </div>
         </div>
+        )
       ) : (
         <div className="card">
           <h1>{campaign.Name}</h1>
@@ -226,6 +248,70 @@ const CampaignDetail = () => {
           <p><strong>Status:</strong> {campaign.Status}</p>
         </div>
       )}
+
+      <div className="card">
+        <div 
+          onClick={() => setShowEmailContent(!showEmailContent)}
+          style={{ 
+            cursor: 'pointer', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            padding: '10px 0',
+            borderBottom: showEmailContent ? '1px solid #ddd' : 'none',
+            marginBottom: showEmailContent ? '15px' : '0'
+          }}
+        >
+          <h2 style={{ margin: 0 }}>Email Content</h2>
+          <span style={{ fontSize: '1.5rem' }}>{showEmailContent ? '▼' : '▶'}</span>
+        </div>
+        
+        {showEmailContent && (
+          <div>
+            <div style={{ marginBottom: '15px' }}>
+              <strong>Subject:</strong> {campaign.Subject}
+            </div>
+            <div style={{ 
+              padding: '15px', 
+              border: '1px solid #ddd', 
+              borderRadius: '4px',
+              backgroundColor: '#f9f9f9',
+              maxHeight: '500px',
+              overflow: 'auto'
+            }}>
+              <div dangerouslySetInnerHTML={{ __html: campaign.Body }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>Recipients ({campaignContacts.length})</h2>
+        {campaignContacts.length === 0 ? (
+          <p>No recipients selected for this campaign.</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Company</th>
+                <th>Job Title</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaignContacts.map((contact) => (
+                <tr key={contact.ContactId}>
+                  <td>{contact.FirstName} {contact.LastName}</td>
+                  <td>{contact.Email}</td>
+                  <td>{contact.Company || '-'}</td>
+                  <td>{contact.JobTitle || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       <div className="stats-grid">
         <div className="stat-card">

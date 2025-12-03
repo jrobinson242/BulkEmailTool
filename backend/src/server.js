@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
+const EmailWorker = require('./workers/emailWorker');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -11,9 +12,21 @@ const contactRoutes = require('./routes/contacts');
 const templateRoutes = require('./routes/templates');
 const campaignRoutes = require('./routes/campaigns');
 const analyticsRoutes = require('./routes/analytics');
+const queueRoutes = require('./routes/queue');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Initialize and start email worker
+const emailWorker = new EmailWorker();
+emailWorker.initialize()
+  .then(() => {
+    emailWorker.start();
+    logger.info('Email worker started successfully');
+  })
+  .catch(error => {
+    logger.error('Failed to start email worker', { error: error.message });
+  });
 
 // Security middleware
 app.use(helmet());
@@ -51,6 +64,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/queue', queueRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -70,6 +84,19 @@ app.use((req, res) => {
 // Start server
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM signal received: closing HTTP server and stopping email worker');
+  emailWorker.stop();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT signal received: closing HTTP server and stopping email worker');
+  emailWorker.stop();
+  process.exit(0);
 });
 
 module.exports = app;

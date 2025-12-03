@@ -49,23 +49,29 @@ router.get('/campaign/:id', authenticateToken, async (req, res) => {
 router.get('/track/:trackingId', async (req, res) => {
   try {
     const trackingId = req.params.trackingId;
+    logger.info(`Tracking pixel accessed: ${trackingId}`);
+    
     const parts = trackingId.split('-');
     
     if (parts.length >= 2) {
       const campaignId = parts[0];
       const contactId = parts[1];
       
+      logger.info(`Updating open status for campaign ${campaignId}, contact ${contactId}`);
+      
       // Update opened status
-      await executeQuery(`
+      const result = await executeQuery(`
         UPDATE CampaignLogs 
         SET Opened = 1, OpenedAt = GETDATE()
-        WHERE CampaignId = @campaignId AND ContactId = @contactId
+        WHERE CampaignId = @campaignId AND ContactId = @contactId AND Opened = 0
       `, {
         campaignId,
         contactId
       });
       
-      logger.info(`Email opened: ${trackingId}`);
+      logger.info(`Email opened: ${trackingId}, rows affected: ${result.rowsAffected[0]}`);
+    } else {
+      logger.warn(`Invalid tracking ID format: ${trackingId}`);
     }
     
     // Return 1x1 transparent pixel
@@ -114,9 +120,11 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       SELECT 
         COUNT(DISTINCT c.CampaignId) as TotalCampaigns,
         COUNT(DISTINCT con.ContactId) as TotalContacts,
-        SUM(CASE WHEN cl.Status = 'sent' THEN 1 ELSE 0 END) as TotalEmailsSent,
-        SUM(CASE WHEN cl.Opened = 1 THEN 1 ELSE 0 END) as TotalOpened,
-        SUM(CASE WHEN cl.Clicked = 1 THEN 1 ELSE 0 END) as TotalClicked
+        COUNT(DISTINCT CASE WHEN cl.Status = 'sent' THEN CAST(cl.CampaignId AS VARCHAR) + '-' + CAST(cl.ContactId AS VARCHAR) END) as TotalEmailsSent,
+        COUNT(DISTINCT CASE WHEN cl.Opened = 1 THEN CAST(cl.CampaignId AS VARCHAR) + '-' + CAST(cl.ContactId AS VARCHAR) END) as TotalOpened,
+        COUNT(DISTINCT CASE WHEN cl.Clicked = 1 THEN CAST(cl.CampaignId AS VARCHAR) + '-' + CAST(cl.ContactId AS VARCHAR) END) as TotalClicked,
+        COUNT(DISTINCT CASE WHEN cl.Status = 'queued' THEN CAST(cl.CampaignId AS VARCHAR) + '-' + CAST(cl.ContactId AS VARCHAR) END) as TotalQueued,
+        COUNT(DISTINCT CASE WHEN cl.Status = 'failed' THEN CAST(cl.CampaignId AS VARCHAR) + '-' + CAST(cl.ContactId AS VARCHAR) END) as TotalFailed
       FROM Campaigns c
       LEFT JOIN CampaignLogs cl ON c.CampaignId = cl.CampaignId
       LEFT JOIN Contacts con ON c.UserId = con.UserId
@@ -132,6 +140,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       totalEmailsSent: stats.TotalEmailsSent || 0,
       totalOpened: stats.TotalOpened || 0,
       totalClicked: stats.TotalClicked || 0,
+      totalQueued: stats.TotalQueued || 0,
+      totalFailed: stats.TotalFailed || 0,
       overallOpenRate: stats.TotalEmailsSent > 0 
         ? ((stats.TotalOpened / stats.TotalEmailsSent) * 100).toFixed(2) 
         : 0,

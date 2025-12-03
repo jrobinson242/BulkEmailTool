@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { templatesAPI } from '../services/api.jsx';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const Templates = () => {
   const [templates, setTemplates] = useState([]);
@@ -120,13 +122,27 @@ const Templates = () => {
               value={formData.subject}
               onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
             />
-            <textarea
-              placeholder="Email Body * (Use {{FirstName}}, {{LastName}}, {{Company}}, etc. for personalization)"
-              required
-              rows="10"
-              value={formData.body}
-              onChange={(e) => setFormData({ ...formData, body: e.target.value })}
-            />
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Email Body *</label>
+              <ReactQuill
+                theme="snow"
+                value={formData.body}
+                onChange={(content) => setFormData({ ...formData, body: content })}
+                modules={{
+                  toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'align': [] }],
+                    ['link', 'image'],
+                    ['clean']
+                  ]
+                }}
+                style={{ backgroundColor: 'white', minHeight: '200px' }}
+                placeholder="Type your email content here... Use {{FirstName}}, {{LastName}}, {{Company}}, etc. for personalization"
+              />
+            </div>
             <textarea
               placeholder="Description (optional)"
               rows="3"
@@ -250,17 +266,15 @@ const Templates = () => {
             
             <div style={{ marginBottom: '15px' }}>
               <strong>Body:</strong>
-              <pre style={{ 
+              <div style={{ 
                 marginTop: '5px', 
                 padding: '10px', 
                 backgroundColor: '#f8f9fa', 
                 borderRadius: '4px',
-                whiteSpace: 'pre-wrap',
-                wordWrap: 'break-word',
-                fontFamily: 'inherit'
-              }}>
-                {viewingTemplate.Body}
-              </pre>
+                border: '1px solid #dee2e6'
+              }}
+              dangerouslySetInnerHTML={{ __html: viewingTemplate.Body }}
+              />
             </div>
             
             {viewingTemplate.Description && (

@@ -159,8 +159,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       // Add new contacts
       if (contactIds.length > 0) {
         const contactsQuery = `
-          INSERT INTO CampaignContacts (CampaignId, ContactId, Status, CreatedAt)
-          VALUES ${contactIds.map((_, i) => `(@campaignId, @contactId${i}, 'pending', GETDATE())`).join(', ')}
+          INSERT INTO CampaignContacts (CampaignId, ContactId)
+          VALUES ${contactIds.map((_, i) => `(@campaignId, @contactId${i})`).join(', ')}
         `;
         
         const params = { campaignId };
@@ -259,13 +259,23 @@ router.post('/:id/send', authenticateToken, async (req, res) => {
         recipient: contact.Email,
         subject,
         body,
-        trackingId
+        trackingId,
+        accessToken: req.accessToken
       });
       
-      // Log the queued email
+      // Log the queued email (only if not already exists)
       await executeQuery(`
-        INSERT INTO CampaignLogs (CampaignId, ContactId, Status, CreatedAt)
-        VALUES (@campaignId, @contactId, 'queued', GETDATE())
+        IF NOT EXISTS (SELECT 1 FROM CampaignLogs WHERE CampaignId = @campaignId AND ContactId = @contactId)
+        BEGIN
+          INSERT INTO CampaignLogs (CampaignId, ContactId, Status, CreatedAt)
+          VALUES (@campaignId, @contactId, 'queued', GETDATE())
+        END
+        ELSE
+        BEGIN
+          UPDATE CampaignLogs
+          SET Status = 'queued', CreatedAt = GETDATE(), SentAt = NULL, ErrorMessage = NULL
+          WHERE CampaignId = @campaignId AND ContactId = @contactId
+        END
       `, {
         campaignId,
         contactId: contact.ContactId
