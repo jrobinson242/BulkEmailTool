@@ -324,20 +324,20 @@ const Contacts = () => {
               Your CSV file should contain a header row with the following column names (case-insensitive):
             </p>
             <ul style={{ marginLeft: '20px', marginBottom: '15px', color: '#555' }}>
-              <li><strong>Email</strong> (required) - Can also be: "E-mail", "EMAIL", "email address"</li>
-              <li><strong>FirstName</strong> (optional) - Can also be: "First Name", "first_name", "Given Name"</li>
-              <li><strong>LastName</strong> (optional) - Can also be: "Last Name", "last_name", "Surname"</li>
+              <li><strong>Email</strong> (required)</li>
+              <li><strong>FirstName</strong> (optional)</li>
+              <li><strong>LastName</strong> (optional)</li>
               <li><strong>Company</strong> (optional)</li>
-              <li><strong>JobTitle</strong> (optional) - Can also be: "Job Title", "Title"</li>
-              <li><strong>Phone</strong> (optional) - Can also be: "Phone Number", "Telephone"</li>
-              <li><strong>Tags</strong> (optional) - Comma-separated values</li>
+              <li><strong>JobTitle</strong> (optional)</li>
+              <li><strong>Phone</strong> (optional)</li>
+              <li><strong>Tags</strong> (optional) - Comma-separated values to use for categorization or filtering</li>
             </ul>
             <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ddd', marginBottom: '15px' }}>
               <strong>Example CSV:</strong>
               <pre style={{ margin: '10px 0', fontSize: '13px', color: '#333' }}>
-Email,FirstName,LastName,Company,JobTitle
-john@example.com,John,Doe,Acme Inc,Manager
-jane@example.com,Jane,Smith,Tech Corp,Developer
+Email,FirstName,LastName,Company,JobTitle,Phone,Tags<br/>
+john@example.com,John,Doe,Acme Inc,Manager,123-456-7890,tag1,tag2<br/>
+jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
               </pre>
             </div>
             <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
