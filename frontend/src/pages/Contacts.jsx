@@ -17,6 +17,7 @@ const Contacts = () => {
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [folderSearch, setFolderSearch] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [showCSVDialog, setShowCSVDialog] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -117,9 +118,12 @@ const Contacts = () => {
       await contactsAPI.import(file);
       alert('Contacts imported successfully!');
       await loadContacts();
+      setShowCSVDialog(false);
     } catch (err) {
       alert('Failed to import contacts: ' + (err.response?.data?.error || err.message));
     }
+    // Reset the file input
+    e.target.value = '';
   };
 
   // Filter folders and contacts based on search
@@ -300,15 +304,9 @@ const Contacts = () => {
               {deleting ? '🔄 Deleting...' : `Delete Selected (${selectedContacts.length})`}
             </button>
           )}
-          <label className="btn btn-secondary" style={{ marginRight: '10px', cursor: 'pointer', display: 'inline-block' }}>
+          <button onClick={() => setShowCSVDialog(true)} className="btn btn-secondary" style={{ marginRight: '10px' }}>
             Upload CSV
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleCSVUpload}
-              style={{ display: 'none' }}
-            />
-          </label>
+          </button>
           <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
             {showForm ? 'Cancel' : 'Add Contact'}
           </button>
@@ -316,6 +314,52 @@ const Contacts = () => {
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      {showCSVDialog && (
+        <div className="card" style={{ marginBottom: '20px', backgroundColor: '#f9f9f9' }}>
+          <h2>Upload CSV File</h2>
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '10px' }}>CSV File Format</h3>
+            <p style={{ marginBottom: '10px', color: '#555' }}>
+              Your CSV file should contain a header row with the following column names (case-insensitive):
+            </p>
+            <ul style={{ marginLeft: '20px', marginBottom: '15px', color: '#555' }}>
+              <li><strong>Email</strong> (required) - Can also be: "E-mail", "EMAIL", "email address"</li>
+              <li><strong>FirstName</strong> (optional) - Can also be: "First Name", "first_name", "Given Name"</li>
+              <li><strong>LastName</strong> (optional) - Can also be: "Last Name", "last_name", "Surname"</li>
+              <li><strong>Company</strong> (optional)</li>
+              <li><strong>JobTitle</strong> (optional) - Can also be: "Job Title", "Title"</li>
+              <li><strong>Phone</strong> (optional) - Can also be: "Phone Number", "Telephone"</li>
+              <li><strong>Tags</strong> (optional) - Comma-separated values</li>
+            </ul>
+            <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ddd', marginBottom: '15px' }}>
+              <strong>Example CSV:</strong>
+              <pre style={{ margin: '10px 0', fontSize: '13px', color: '#333' }}>
+Email,FirstName,LastName,Company,JobTitle
+john@example.com,John,Doe,Acme Inc,Manager
+jane@example.com,Jane,Smith,Tech Corp,Developer
+              </pre>
+            </div>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
+              <strong>Note:</strong> Duplicate emails will be updated with the new information. Invalid rows will be skipped.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <label className="btn btn-primary" style={{ cursor: 'pointer', margin: 0 }}>
+              Choose CSV File
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCSVUpload}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <button onClick={() => setShowCSVDialog(false)} className="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {showFolderSelect && (
         <div className="card" style={{ marginBottom: '20px' }}>
