@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { campaignsAPI, templatesAPI, contactsAPI } from '../services/api.jsx';
 
 const Campaigns = () => {
@@ -8,6 +10,9 @@ const Campaigns = () => {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
   const [formData, setFormData] = useState({
     name: '',
     templateId: '',
@@ -99,11 +104,137 @@ const Campaigns = () => {
       contactIds: contacts.map(c => c.ContactId)
     }));
   };
+  const handleTemplateChange = (e) => {
+    const value = e.target.value;
+    if (value === 'CREATE_NEW') {
+      setShowTemplateForm(true);
+      setFormData({ ...formData, templateId: '' });
+    } else {
+      setFormData({ ...formData, templateId: value });
+    }
+  };
+
+  const handleCreateTemplate = async (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent parent form submission
+    
+    // Validate body has actual content (not just empty HTML tags)
+    const strippedBody = newTemplate.body.replace(/<[^>]*>/g, '').trim();
+    if (!strippedBody) {
+      alert('Please enter email body content');
+      return;
+    }
+    
+    if (!newTemplate.name || !newTemplate.subject) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      setCreatingTemplate(true);
+      console.log('Creating template:', newTemplate);
+      const response = await templatesAPI.create(newTemplate);
+      console.log('Template created:', response.data);
+      await loadData();
+      setFormData({ ...formData, templateId: response.data.TemplateId });
+      setShowTemplateForm(false);
+      setNewTemplate({ name: '', subject: '', body: '' });
+      alert('Template created successfully!');
+    } catch (err) {
+      console.error('Template creation error:', err);
+      alert('Failed to create template: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setCreatingTemplate(false);
+    }
+  };
+
+  const handleCancelTemplateCreation = () => {
+    setShowTemplateForm(false);
+    setNewTemplate({ name: '', subject: '', body: '' });
+  };
 
   if (loading) return <div className="loading">Loading campaigns...</div>;
 
   return (
     <div className="container">
+      {/* Template Creation Modal */}
+      {showTemplateForm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            maxWidth: '800px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflow: 'auto'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>Create New Template</h3>
+            <form onSubmit={handleCreateTemplate}>
+              <input
+                type="text"
+                placeholder="Template Name *"
+                required
+                value={newTemplate.name}
+                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                style={{ marginBottom: '10px' }}
+              />
+              <input
+                type="text"
+                placeholder="Email Subject *"
+                required
+                value={newTemplate.subject}
+                onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
+                style={{ marginBottom: '10px' }}
+              />
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Email Body *</label>
+                <ReactQuill
+                  theme="snow"
+                  value={newTemplate.body}
+                  onChange={(content) => setNewTemplate({ ...newTemplate, body: content })}
+                  modules={{
+                    toolbar: [
+                      [{ 'header': [1, 2, 3, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      [{ 'color': [] }, { 'background': [] }],
+                      [{ 'align': [] }],
+                      ['link', 'image'],
+                      ['clean']
+                    ]
+                  }}
+                  style={{ backgroundColor: 'white', minHeight: '200px' }}
+                  placeholder="Type your email content here... Use {{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}} for personalization"
+                />
+              </div>
+              <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px', fontSize: '14px', marginBottom: '15px' }}>
+                <strong>Available Placeholders:</strong> <code>{'{{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}}'}</code>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" className="btn btn-primary" disabled={creatingTemplate}>
+                  {creatingTemplate ? 'Creating...' : 'Create Template'}
+                </button>
+                <button type="button" onClick={handleCancelTemplateCreation} className="btn btn-secondary">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>Campaigns</h1>
         <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
@@ -126,12 +257,13 @@ const Campaigns = () => {
             <select
               required
               value={formData.templateId}
-              onChange={(e) => setFormData({ ...formData, templateId: e.target.value })}
+              onChange={handleTemplateChange}
             >
               <option value="">Select Template *</option>
               {templates.map(t => (
                 <option key={t.TemplateId} value={t.TemplateId}>{t.Name}</option>
               ))}
+              <option value="CREATE_NEW" style={{ fontWeight: 'bold', color: '#007bff' }}>+ Create New Template</option>
             </select>
 
             <div style={{ margin: '20px 0' }}>
