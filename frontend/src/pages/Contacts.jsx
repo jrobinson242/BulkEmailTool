@@ -13,6 +13,7 @@ const Contacts = () => {
   const [selectedFolders, setSelectedFolders] = useState([]);
   const [expandedFolders, setExpandedFolders] = useState([]);
   const [selectedContacts, setSelectedContacts] = useState([]);
+  const [selectedSyncContacts, setSelectedSyncContacts] = useState([]); // For sync dialog contacts
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [folderSearch, setFolderSearch] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -88,6 +89,18 @@ const Contacts = () => {
     );
   };
 
+  const toggleSyncContact = (folderId, contact) => {
+    const contactKey = `${folderId}:${contact.email}`;
+    setSelectedSyncContacts(prev => {
+      const exists = prev.find(c => `${c.folderId}:${c.email}` === contactKey);
+      if (exists) {
+        return prev.filter(c => `${c.folderId}:${c.email}` !== contactKey);
+      } else {
+        return [...prev, { folderId, ...contact }];
+      }
+    });
+  };
+
   const toggleAllContacts = () => {
     if (selectedContacts.length === contacts.length) {
       setSelectedContacts([]);
@@ -140,12 +153,24 @@ const Contacts = () => {
   const handleSync = async () => {
     try {
       setSyncing(true);
-      const folderIds = selectedFolders.length > 0 ? selectedFolders : undefined;
-      const response = await contactsAPI.sync(folderIds);
-      await loadContacts();
-      setShowFolderSelect(false);
-      setSelectedFolders([]);
-      alert(`${response.data.message}\nSynced: ${response.data.count}\nSkipped: ${response.data.skipped || 0}`);
+      
+      // If individual contacts are selected, sync only those
+      if (selectedSyncContacts.length > 0) {
+        const response = await contactsAPI.sync({ contacts: selectedSyncContacts });
+        await loadContacts();
+        setShowFolderSelect(false);
+        setSelectedFolders([]);
+        setSelectedSyncContacts([]);
+        alert(`${response.data.message}\nSynced: ${response.data.count}\nSkipped: ${response.data.skipped || 0}`);
+      } else {
+        // Otherwise sync entire selected folders
+        const folderIds = selectedFolders.length > 0 ? selectedFolders : undefined;
+        const response = await contactsAPI.sync({ folderIds });
+        await loadContacts();
+        setShowFolderSelect(false);
+        setSelectedFolders([]);
+        alert(`${response.data.message}\nSynced: ${response.data.count}\nSkipped: ${response.data.skipped || 0}`);
+      }
     } catch (err) {
       console.error('Sync error:', err);
       const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
@@ -275,6 +300,15 @@ const Contacts = () => {
               {deleting ? '🔄 Deleting...' : `Delete Selected (${selectedContacts.length})`}
             </button>
           )}
+          <label className="btn btn-secondary" style={{ marginRight: '10px', cursor: 'pointer', display: 'inline-block' }}>
+            Upload CSV
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleCSVUpload}
+              style={{ display: 'none' }}
+            />
+          </label>
           <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
             {showForm ? 'Cancel' : 'Add Contact'}
           </button>
@@ -286,35 +320,24 @@ const Contacts = () => {
       {showFolderSelect && (
         <div className="card" style={{ marginBottom: '20px' }}>
           <h2>Select Contact Sources to Sync</h2>
-          <div style={{ marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <button 
-                onClick={selectAllFolders} 
-                className="btn btn-secondary" 
-                style={{ marginRight: '10px', padding: '5px 15px' }}
-              >
-                Select All
-              </button>
-              <button 
-                onClick={() => setSelectedFolders([])} 
-                className="btn btn-secondary" 
-                style={{ marginRight: '10px', padding: '5px 15px' }}
-              >
-                Clear Selection
-              </button>
-              <span style={{ color: '#666' }}>
-                {selectedFolders.length} of {folders.length} selected
-              </span>
-            </div>
-            <label className="btn btn-secondary" style={{ padding: '5px 15px', cursor: 'pointer', margin: 0 }}>
-              Upload CSV
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCSVUpload}
-                style={{ display: 'none' }}
-              />
-            </label>
+          <div style={{ marginBottom: '15px' }}>
+            <button 
+              onClick={selectAllFolders} 
+              className="btn btn-secondary" 
+              style={{ marginRight: '10px', padding: '5px 15px' }}
+            >
+              Select All
+            </button>
+            <button 
+              onClick={() => setSelectedFolders([])} 
+              className="btn btn-secondary" 
+              style={{ marginRight: '10px', padding: '5px 15px' }}
+            >
+              Clear Selection
+            </button>
+            <span style={{ color: '#666' }}>
+              {selectedFolders.length} of {folders.length} selected
+            </span>
           </div>
           <input
             type="text"
@@ -363,16 +386,20 @@ const Contacts = () => {
                 {isExpanded && folder.contacts && folder.contacts.length > 0 && (
                   <div style={{ marginLeft: '30px', marginTop: '8px', fontSize: '13px', color: '#555' }}>
                     {folder.contacts.map((contact, idx) => {
-                      const contactId = `${folder.id}-${idx}`;
+                      const contactKey = `${folder.id}:${contact.email}`;
+                      const isSelected = selectedSyncContacts.some(c => `${c.folderId}:${c.email}` === contactKey);
                       return (
                         <div key={idx} style={{ padding: '4px 0', display: 'flex', alignItems: 'center' }}>
                           <input
                             type="checkbox"
-                            checked={selectedContacts.includes(contactId)}
-                            onChange={() => toggleContact(contactId)}
+                            checked={isSelected}
+                            onChange={() => toggleSyncContact(folder.id, contact)}
                             style={{ marginRight: '8px', width: 'auto', cursor: 'pointer' }}
                           />
-                          <label style={{ cursor: 'pointer', margin: 0 }}>
+                          <label 
+                            style={{ cursor: 'pointer', margin: 0 }}
+                            onClick={() => toggleSyncContact(folder.id, contact)}
+                          >
                             {contact.displayName || `${contact.givenName} ${contact.surname}`}
                             {contact.email && <span style={{ color: '#888' }}> ({contact.email})</span>}
                           </label>
@@ -386,20 +413,32 @@ const Contacts = () => {
             })
             )}
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button 
               onClick={handleSync} 
-              disabled={syncing || selectedFolders.length === 0} 
+              disabled={syncing || (selectedFolders.length === 0 && selectedSyncContacts.length === 0)} 
               className="btn btn-primary"
             >
-              {syncing ? 'Syncing...' : `Sync ${selectedFolders.length} Source${selectedFolders.length !== 1 ? 's' : ''}`}
+              {syncing ? 'Syncing...' : 
+                selectedSyncContacts.length > 0 
+                  ? `Sync ${selectedSyncContacts.length} Contact${selectedSyncContacts.length !== 1 ? 's' : ''}`
+                  : `Sync ${selectedFolders.length} Source${selectedFolders.length !== 1 ? 's' : ''}`
+              }
             </button>
             <button 
-              onClick={() => setShowFolderSelect(false)} 
+              onClick={() => {
+                setShowFolderSelect(false);
+                setSelectedSyncContacts([]);
+              }} 
               className="btn btn-secondary"
             >
               Cancel
             </button>
+            {selectedSyncContacts.length > 0 && (
+              <span style={{ color: '#666', fontSize: '14px' }}>
+                {selectedSyncContacts.length} individual contact{selectedSyncContacts.length !== 1 ? 's' : ''} selected
+              </span>
+            )}
           </div>
         </div>
       )}

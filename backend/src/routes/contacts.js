@@ -120,17 +120,33 @@ router.get('/folders', authenticateToken, async (req, res) => {
   }
 });
 
-// Sync contacts from Outlook (from selected folders or all)
+// Sync contacts from Outlook (from selected folders, individual contacts, or all)
 router.post('/sync', authenticateToken, async (req, res) => {
   try {
     logger.info(`Starting contact sync for user ${req.userId}`);
     
     const graphService = new GraphService(req.accessToken);
-    const { folderIds } = req.body; // Array of folder IDs to sync, or empty for all
+    const { folderIds, contacts: individualContacts } = req.body;
     
     let outlookContacts = [];
     
-    if (folderIds && folderIds.length > 0) {
+    // If individual contacts are provided, sync only those
+    if (individualContacts && individualContacts.length > 0) {
+      logger.info(`Syncing ${individualContacts.length} individually selected contacts...`);
+      
+      // Map the frontend contact format to the backend format
+      outlookContacts = individualContacts.map(contact => ({
+        givenName: contact.givenName || '',
+        surname: contact.surname || '',
+        displayName: contact.displayName || `${contact.givenName} ${contact.surname}`.trim(),
+        emailAddresses: [{ address: contact.email }],
+        companyName: contact.company || '',
+        jobTitle: contact.jobTitle || '',
+        businessPhones: contact.phone ? [contact.phone] : [],
+        folderName: 'Selected Contacts',
+        folderId: contact.folderId
+      }));
+    } else if (folderIds && folderIds.length > 0) {
       // Sync from selected folders only
       logger.info(`Fetching contacts from ${folderIds.length} selected folders...`);
       
