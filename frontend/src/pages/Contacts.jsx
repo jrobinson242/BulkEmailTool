@@ -14,6 +14,7 @@ const Contacts = () => {
   const [editingListId, setEditingListId] = useState(null);
   const [showAddToListDialog, setShowAddToListDialog] = useState(false);
   const [contactToAssign, setContactToAssign] = useState(null);
+  const [selectedListIds, setSelectedListIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -159,25 +160,62 @@ const Contacts = () => {
     }
   };
 
-  const handleAddToList = async (listId) => {
+  const handleAddToList = async () => {
     const contactIds = contactToAssign ? [contactToAssign] : selectedContacts;
     
     if (contactIds.length === 0) {
-      alert('Please select contacts to add to the list');
+      alert('Please select contacts');
       return;
     }
+    
     try {
-      await contactListsAPI.addContacts(listId, contactIds);
-      alert(`${contactIds.length} contact(s) added to list`);
+      // Determine which lists to add to and which to remove from
+      const currentListIds = new Set();
+      for (const contactId of contactIds) {
+        const assignedLists = contactListMap[contactId] || [];
+        const contactCurrentListIds = lists
+          .filter(list => assignedLists.includes(list.Name))
+          .map(list => list.ListId);
+        contactCurrentListIds.forEach(id => currentListIds.add(id));
+      }
+      
+      const selectedSet = new Set(selectedListIds);
+      const listsToAdd = selectedListIds.filter(id => !currentListIds.has(id));
+      const listsToRemove = Array.from(currentListIds).filter(id => !selectedSet.has(id));
+      
+      const operations = [];
+      
+      // Add contacts to newly selected lists
+      listsToAdd.forEach(listId => {
+        operations.push(contactListsAPI.addContacts(listId, contactIds));
+      });
+      
+      // Remove contacts from deselected lists
+      listsToRemove.forEach(listId => {
+        contactIds.forEach(contactId => {
+          operations.push(contactListsAPI.removeContact(listId, contactId));
+        });
+      });
+      
+      if (operations.length > 0) {
+        await Promise.all(operations);
+      }
+      
+      setSuccessMessage({ 
+        show: true, 
+        title: 'Success', 
+        message: `${contactIds.length} contact(s) updated successfully` 
+      });
       setShowAddToListDialog(false);
       setContactToAssign(null);
       setSelectedContacts([]);
+      setSelectedListIds([]);
       await loadLists();
       if (selectedList) {
         await loadListMembers(selectedList);
       }
     } catch (err) {
-      alert('Failed to add contacts to list: ' + (err.response?.data?.error || err.message));
+      alert('Failed to update contacts: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -539,7 +577,17 @@ const Contacts = () => {
               <button onClick={() => setConfirmDelete({ show: true, type: 'bulk', id: null, name: null, count: selectedContacts.length })} disabled={deleting} className="btn btn-danger" style={{ marginRight: '10px' }}>
                 {deleting ? '🔄 Deleting...' : `Delete Selected (${selectedContacts.length})`}
               </button>
-              <button onClick={() => setShowAddToListDialog(true)} className="btn btn-secondary" style={{ marginRight: '10px' }}>
+              <button onClick={() => {
+                // Initialize with lists that all selected contacts are already in
+                const initialLists = lists.filter(list => 
+                  selectedContacts.every(cId => {
+                    const assignedLists = contactListMap[cId] || [];
+                    return assignedLists.includes(list.Name);
+                  })
+                ).map(list => list.ListId);
+                setSelectedListIds(initialLists);
+                setShowAddToListDialog(true);
+              }} className="btn btn-secondary" style={{ marginRight: '10px' }}>
                 Add to List
               </button>
             </>
@@ -700,22 +748,20 @@ const Contacts = () => {
                 style={{ width: '100%' }}
               />
             </div>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '8px' }}>
+            <div style={{display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+              <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                 <input
                   type="checkbox"
                   checked={listFormData.isGlobal || false}
                   onChange={(e) => setListFormData({ ...listFormData, isGlobal: e.target.checked })}
+                  style={{ margin: 0 }}
                 />
-                <span style={{ fontSize: '14px' }}>
+                <span style={{ fontSize: '14px', marginLeft: '8px', whiteSpace: 'nowrap' }}>
                   <strong>Global List</strong> - Visible to all users
                 </span>
               </label>
-              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px', marginLeft: '24px' }}>
-                Global lists can be seen and used by all users in your organization
-              </p>
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button onClick={() => { setShowListForm(false); setEditingListId(null); setListFormData({ name: '', description: '', isGlobal: false }); }} className="btn btn-secondary">
                 Cancel
               </button>
@@ -745,36 +791,82 @@ const Contacts = () => {
             backgroundColor: 'white',
             padding: '30px',
             borderRadius: '8px',
-            maxWidth: '400px',
+            maxWidth: '500px',
             width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto',
             boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
           }}>
-            <h2>
+            <h2 style={{ textAlign: 'left' }}>
               {contactToAssign 
-                ? 'Add Contact to List' 
-                : `Add ${selectedContacts.length} Contact${selectedContacts.length !== 1 ? 's' : ''} to List`}
+                ? 'Manage Contact Lists' 
+                : `Manage Lists for ${selectedContacts.length} Contact${selectedContacts.length !== 1 ? 's' : ''}`}
             </h2>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px' }}>Select List</label>
-              <select
-                value={selectedList || ''}
-                onChange={(e) => setSelectedList(e.target.value ? parseInt(e.target.value) : null)}
-                style={{ width: '100%' }}
-              >
-                <option value="">Choose a list...</option>
-                {lists.map(list => (
-                  <option key={list.ListId} value={list.ListId}>
-                    {list.Name} ({list.ContactCount || 0})
-                  </option>
-                ))}
-              </select>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px', textAlign: 'left' }}>
+              Check the lists you want this contact to be in. Uncheck to remove.
+            </p>
+            <div style={{ marginBottom: '20px', maxHeight: '300px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
+              {lists.length === 0 ? (
+                <p style={{ color: '#999', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
+                  No lists available. Create a list first.
+                </p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <tbody>
+                    {lists.map((list) => {
+                      const isChecked = selectedListIds.includes(list.ListId);
+
+                      return (
+                        <tr
+                          key={list.ListId}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedListIds(selectedListIds.filter((id) => id !== list.ListId));
+                            } else {
+                              setSelectedListIds([...selectedListIds, list.ListId]);
+                            }
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            backgroundColor: isChecked ? '#e3f2fd' : 'transparent',
+                            borderRadius: '4px'
+                          }}
+                        >
+                          <td style={{ width: '30px', padding: '8px 4px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedListIds([...selectedListIds, list.ListId]);
+                                } else {
+                                  setSelectedListIds(selectedListIds.filter((id) => id !== list.ListId));
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 4px', textAlign: 'left' }}>
+                            {list.Name}
+                            {list.IsGlobal && <span style={{ marginLeft: '5px', fontSize: '12px' }}>🌐</span>}
+                          </td>
+                          <td style={{ padding: '8px 4px', textAlign: 'right', fontSize: '12px', color: '#666', width: '60px' }}>
+                            ({list.ContactCount || 0})
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowAddToListDialog(false); setContactToAssign(null); }} className="btn btn-secondary">
+              <button onClick={() => { setShowAddToListDialog(false); setContactToAssign(null); setSelectedListIds([]); }} className="btn btn-secondary">
                 Cancel
               </button>
-              <button onClick={() => { handleAddToList(selectedList); setShowAddToListDialog(false); }} className="btn btn-primary" disabled={!selectedList}>
-                Add to List
+              <button onClick={handleAddToList} className="btn btn-primary" disabled={selectedListIds.length === 0}>
+                Update Lists
               </button>
             </div>
           </div>
@@ -1055,11 +1147,13 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
                   <td>{contact.JobTitle}</td>
                   <td>
                     {assignedLists.length > 0 ? (
-                      <span style={{ fontSize: '12px', color: '#666' }}>
+                      <div style={{ fontSize: '12px', color: '#666' }}>
                         {assignedLists.join(', ')}
-                      </span>
+                      </div>
                     ) : (
-                      <span style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>None</span>
+                      <span style={{ color: '#999', fontStyle: 'italic', fontSize: '12px' }}>
+                        None
+                      </span>
                     )}
                   </td>
                   <td>
@@ -1094,7 +1188,14 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
                       </button>
                       {!selectedList && lists.length > 0 && (
                         <button 
-                          onClick={() => { setContactToAssign(contact.ContactId); setShowAddToListDialog(true); }} 
+                          onClick={() => { 
+                            setContactToAssign(contact.ContactId);
+                            // Initialize with lists this contact is already in
+                            const assignedLists = contactListMap[contact.ContactId] || [];
+                            const initialLists = lists.filter(list => assignedLists.includes(list.Name)).map(list => list.ListId);
+                            setSelectedListIds(initialLists);
+                            setShowAddToListDialog(true);
+                          }} 
                           disabled={deleting}
                           title="Add to list"
                           style={{ 
