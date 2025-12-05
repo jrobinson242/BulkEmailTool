@@ -151,17 +151,18 @@ const Templates = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
-            <div style={{ margin: '15px 0', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-              <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ textAlign: 'left', margin: '15px 0 10px 0' }}>
+              <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                 <input
                   type="checkbox"
                   checked={formData.isGlobal}
                   onChange={(e) => setFormData({ ...formData, isGlobal: e.target.checked })}
                 />
-                <span style={{ fontWeight: 'bold' }}>Make this template global (visible to all users in your organization)</span>
+                <span>Make this template global (visible to all users)</span>
               </label>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
+             
               <button type="submit" className="btn btn-primary">
                 {editingId ? 'Update Template' : 'Create Template'}
               </button>
