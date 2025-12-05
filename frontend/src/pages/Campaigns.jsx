@@ -222,14 +222,14 @@ const Campaigns = () => {
               <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px', fontSize: '14px', marginBottom: '15px' }}>
                 <strong>Available Placeholders:</strong> <code>{'{{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}}'}</code>
               </div>
-              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ textAlign: 'left', marginBottom: '15px' }}>
+                <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                   <input
                     type="checkbox"
                     checked={newTemplate.isGlobal}
                     onChange={(e) => setNewTemplate({ ...newTemplate, isGlobal: e.target.checked })}
                   />
-                  <span style={{ fontWeight: 'bold' }}>Make this template global (visible to all users in your organization)</span>
+                  <span>Make this template global (visible to all users)</span>
                 </label>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
