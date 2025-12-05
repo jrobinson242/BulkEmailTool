@@ -34,6 +34,7 @@ const Contacts = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewContacts, setPreviewContacts] = useState([]);
   const [selectedPreviewContacts, setSelectedPreviewContacts] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [confirmDelete, setConfirmDelete] = useState({ show: false, type: null, id: null, name: null, count: null });
   const [successMessage, setSuccessMessage] = useState({ show: false, title: '', message: '' });
   const [formData, setFormData] = useState({
@@ -54,11 +55,30 @@ const Contacts = () => {
   useEffect(() => {
     // Filter contacts based on selected list
     if (selectedList === null) {
-      setFilteredContacts(contacts);
+      applySearchFilter(contacts);
     } else {
       loadListMembers(selectedList);
     }
-  }, [selectedList, contacts]);
+  }, [selectedList, contacts, searchQuery]);
+
+  const applySearchFilter = (contactsToFilter) => {
+    if (!searchQuery.trim()) {
+      setFilteredContacts(contactsToFilter);
+      return;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    const filtered = contactsToFilter.filter(contact => {
+      return (
+        (contact.FirstName && contact.FirstName.toLowerCase().includes(query)) ||
+        (contact.LastName && contact.LastName.toLowerCase().includes(query)) ||
+        (contact.Email && contact.Email.toLowerCase().includes(query)) ||
+        (contact.Company && contact.Company.toLowerCase().includes(query)) ||
+        (contact.JobTitle && contact.JobTitle.toLowerCase().includes(query))
+      );
+    });
+    setFilteredContacts(filtered);
+  };
 
   const loadContacts = async () => {
     try {
@@ -79,8 +99,8 @@ const Contacts = () => {
       const listContacts = response.data.contacts || [];
       // Filter the contacts array to only show contacts in this list
       const listContactIds = listContacts.map(c => c.ContactId);
-      const filtered = contacts.filter(c => listContactIds.includes(c.ContactId));
-      setFilteredContacts(filtered);
+      const membersInList = contacts.filter(c => listContactIds.includes(c.ContactId));
+      applySearchFilter(membersInList);
     } catch (err) {
       console.error('Failed to load list members', err);
       setFilteredContacts([]);
@@ -602,6 +622,23 @@ const Contacts = () => {
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      {/* Search Bar */}
+      <div style={{ marginBottom: '20px' }}>
+        <input
+          type="text"
+          placeholder="Search contacts by name, email, company, or job title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '10px',
+            fontSize: '14px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          }}
+        />
+      </div>
 
       {/* Contact Lists Tabs */}
       <div style={{ marginBottom: '20px' }}>

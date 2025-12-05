@@ -12,6 +12,7 @@ const Campaigns = () => {
   const [contacts, setContacts] = useState([]);
   const [lists, setLists] = useState([]);
   const [selectedLists, setSelectedLists] = useState([]);
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
@@ -398,8 +399,36 @@ const Campaigns = () => {
                     Select All Contacts
                   </button>
                 </div>
+                {/* Contact Search */}
+                <div style={{ marginBottom: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="Search contacts by name or email..."
+                    value={contactSearchQuery}
+                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      fontSize: '13px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
                 <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
-                  {contacts.map(contact => (
+                  {contacts
+                    .filter(contact => {
+                      if (!contactSearchQuery.trim()) return true;
+                      const query = contactSearchQuery.toLowerCase();
+                      return (
+                        (contact.FirstName && contact.FirstName.toLowerCase().includes(query)) ||
+                        (contact.LastName && contact.LastName.toLowerCase().includes(query)) ||
+                        (contact.Email && contact.Email.toLowerCase().includes(query)) ||
+                        (contact.Company && contact.Company.toLowerCase().includes(query)) ||
+                        (contact.JobTitle && contact.JobTitle.toLowerCase().includes(query))
+                      );
+                    })
+                    .map(contact => (
                     <div key={contact.ContactId} style={{ padding: '5px 0' }}>
                       <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                         <input
