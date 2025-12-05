@@ -865,7 +865,7 @@ const Contacts = () => {
               <button onClick={() => { setShowAddToListDialog(false); setContactToAssign(null); setSelectedListIds([]); }} className="btn btn-secondary">
                 Cancel
               </button>
-              <button onClick={handleAddToList} className="btn btn-primary" disabled={selectedListIds.length === 0}>
+              <button onClick={handleAddToList} className="btn btn-primary">
                 Update Lists
               </button>
             </div>
