@@ -223,15 +223,13 @@ const Templates = () => {
                   <td>
                     <strong>{template.Name}</strong>
                     {template.IsGlobal && (
-                      <span style={{
-                        marginLeft: '10px',
-                        padding: '2px 8px',
-                        backgroundColor: '#0d6efd',
-                        color: 'white',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 'bold'
-                      }}>GLOBAL</span>
+                      <span 
+                        style={{
+                          marginLeft: '10px',
+                          fontSize: '16px'
+                        }}
+                        title="Global"
+                      >🌐</span>
                     )}
                   </td>
                   <td>{template.Subject}</td>

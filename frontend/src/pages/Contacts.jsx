@@ -686,7 +686,7 @@ const Contacts = () => {
             >
               <span onClick={() => setSelectedList(list.ListId)} style={{ marginRight: '10px' }}>
                 📋 {list.Name} ({list.ContactCount || 0})
-                {list.IsGlobal && <span style={{ marginLeft: '5px', fontSize: '12px', opacity: 0.8 }}>🌐</span>}
+                {list.IsGlobal && <span style={{ marginLeft: '5px', fontSize: '12px', opacity: 0.8 }} title="Global">🌐</span>}
               </span>
               <div style={{ display: 'flex', gap: '5px' }}>
                 <button
@@ -886,7 +886,7 @@ const Contacts = () => {
                           </td>
                           <td style={{ padding: '8px 4px', textAlign: 'left' }}>
                             {list.Name}
-                            {list.IsGlobal && <span style={{ marginLeft: '5px', fontSize: '12px' }}>🌐</span>}
+                            {list.IsGlobal && <span style={{ marginLeft: '5px', fontSize: '12px' }} title="Global">🌐</span>}
                           </td>
                           <td style={{ padding: '8px 4px', textAlign: 'right', fontSize: '12px', color: '#666', width: '60px' }}>
                             ({list.ContactCount || 0})
