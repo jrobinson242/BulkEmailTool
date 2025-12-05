@@ -38,6 +38,7 @@ CREATE TABLE Templates (
     Body NVARCHAR(MAX) NOT NULL,
     Description NVARCHAR(MAX),
     Placeholders NVARCHAR(MAX), -- JSON array of placeholder names
+    IsGlobal BIT DEFAULT 0, -- If true, visible to all users in organization
     CreatedAt DATETIME2 DEFAULT GETDATE(),
     UpdatedAt DATETIME2,
     FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE

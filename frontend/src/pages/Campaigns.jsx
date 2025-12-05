@@ -12,7 +12,7 @@ const Campaigns = () => {
   const [showForm, setShowForm] = useState(false);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
-  const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '' });
+  const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '', isGlobal: false });
   const [formData, setFormData] = useState({
     name: '',
     templateId: '',
@@ -138,7 +138,7 @@ const Campaigns = () => {
       await loadData();
       setFormData({ ...formData, templateId: response.data.TemplateId });
       setShowTemplateForm(false);
-      setNewTemplate({ name: '', subject: '', body: '' });
+      setNewTemplate({ name: '', subject: '', body: '', isGlobal: false });
       alert('Template created successfully!');
     } catch (err) {
       console.error('Template creation error:', err);
@@ -150,7 +150,7 @@ const Campaigns = () => {
 
   const handleCancelTemplateCreation = () => {
     setShowTemplateForm(false);
-    setNewTemplate({ name: '', subject: '', body: '' });
+    setNewTemplate({ name: '', subject: '', body: '', isGlobal: false });
   };
 
   if (loading) return <div className="loading">Loading campaigns...</div>;
@@ -221,6 +221,16 @@ const Campaigns = () => {
               </div>
               <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px', fontSize: '14px', marginBottom: '15px' }}>
                 <strong>Available Placeholders:</strong> <code>{'{{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}}'}</code>
+              </div>
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    checked={newTemplate.isGlobal}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, isGlobal: e.target.checked })}
+                  />
+                  <span style={{ fontWeight: 'bold' }}>Make this template global (visible to all users in your organization)</span>
+                </label>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="submit" className="btn btn-primary" disabled={creatingTemplate}>

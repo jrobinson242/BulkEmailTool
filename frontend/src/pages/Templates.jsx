@@ -13,7 +13,8 @@ const Templates = () => {
     name: '',
     subject: '',
     body: '',
-    description: ''
+    description: '',
+    isGlobal: false
   });
 
   useEffect(() => {
@@ -42,7 +43,7 @@ const Templates = () => {
       }
       setShowForm(false);
       setEditingId(null);
-      setFormData({ name: '', subject: '', body: '', description: '' });
+      setFormData({ name: '', subject: '', body: '', description: '', isGlobal: false });
       await loadTemplates();
     } catch (err) {
       alert(`Failed to ${editingId ? 'update' : 'create'} template: ` + err.response?.data?.error);
@@ -66,7 +67,8 @@ const Templates = () => {
         name: template.Name,
         subject: template.Subject,
         body: template.Body,
-        description: template.Description || ''
+        description: template.Description || '',
+        isGlobal: template.IsGlobal || false
       });
       setEditingId(id);
       setShowForm(true);
@@ -79,7 +81,7 @@ const Templates = () => {
   const handleCancelEdit = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData({ name: '', subject: '', body: '', description: '' });
+    setFormData({ name: '', subject: '', body: '', description: '', isGlobal: false });
   };
 
   const handleDelete = async (id) => {
@@ -149,6 +151,16 @@ const Templates = () => {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
+            <div style={{ margin: '15px 0', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+              <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.isGlobal}
+                  onChange={(e) => setFormData({ ...formData, isGlobal: e.target.checked })}
+                />
+                <span style={{ fontWeight: 'bold' }}>Make this template global (visible to all users in your organization)</span>
+              </label>
+            </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button type="submit" className="btn btn-primary">
                 {editingId ? 'Update Template' : 'Create Template'}
@@ -184,7 +196,20 @@ const Templates = () => {
             <tbody>
               {templates.map((template) => (
                 <tr key={template.TemplateId}>
-                  <td><strong>{template.Name}</strong></td>
+                  <td>
+                    <strong>{template.Name}</strong>
+                    {template.IsGlobal && (
+                      <span style={{
+                        marginLeft: '10px',
+                        padding: '2px 8px',
+                        backgroundColor: '#0d6efd',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      }}>GLOBAL</span>
+                    )}
+                  </td>
                   <td>{template.Subject}</td>
                   <td>{template.Description}</td>
                   <td>
