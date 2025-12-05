@@ -237,6 +237,103 @@ router.post('/sync', authenticateToken, async (req, res) => {
   }
 });
 
+// Preview contacts from CSV before importing
+router.post('/import/preview', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const contacts = [];
+    const errors = [];
+    let lineNumber = 1;
+
+    // Parse CSV file
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(req.file.path)
+        .pipe(csv())
+        .on('data', (row) => {
+          lineNumber++;
+          
+          // Check for email (required field)
+          const email = row.email || row.Email || row.EMAIL || row['E-mail'] || row['E-mail Address'];
+          
+          if (!email || !email.trim()) {
+            errors.push(`Line ${lineNumber}: Missing email address`);
+            return;
+          }
+
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email.trim())) {
+            errors.push(`Line ${lineNumber}: Invalid email format: ${email}`);
+            return;
+          }
+
+          // Extract contact information
+          contacts.push({
+            firstName: row.firstName || row.FirstName || row.first_name || row['First Name'] || '',
+            lastName: row.lastName || row.LastName || row.last_name || row['Last Name'] || '',
+            email: email.trim(),
+            company: row.company || row.Company || row.organization || row.Organization || '',
+            jobTitle: row.jobTitle || row.JobTitle || row.job_title || row['Job Title'] || row.title || row.Title || '',
+            phone: row.phone || row.Phone || row.mobile || row.Mobile || row['Phone Number'] || '',
+            tags: row.tags || row.Tags || row.category || row.Category || 'CSV Import'
+          });
+        })
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    // Delete uploaded file
+    fs.unlinkSync(req.file.path);
+
+    if (contacts.length === 0) {
+      return res.status(400).json({ 
+        error: 'No valid contacts found in CSV file', 
+        errors: errors 
+      });
+    }
+
+    // Check which contacts already exist
+    const existingEmails = [];
+    const newContacts = [];
+    
+    for (const contact of contacts) {
+      const checkQuery = `
+        SELECT ContactId, Email FROM Contacts 
+        WHERE UserId = @userId AND Email = @email
+      `;
+      const result = await executeQuery(checkQuery, {
+        userId: req.userId,
+        email: contact.email
+      });
+      
+      if (result.recordset.length > 0) {
+        existingEmails.push(contact.email);
+      } else {
+        newContacts.push(contact);
+      }
+    }
+
+    res.json({
+      totalParsed: contacts.length,
+      newContacts,
+      existingCount: existingEmails.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    logger.error('CSV preview failed', { error: error.message });
+    
+    // Clean up uploaded file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Import contacts from CSV
 router.post('/import', authenticateToken, upload.single('file'), async (req, res) => {
   try {
@@ -303,6 +400,7 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
     // Insert contacts into database using MERGE to handle duplicates
     let imported = 0;
     let skipped = 0;
+    const contactIds = [];
 
     for (const contact of contacts) {
       try {
@@ -321,10 +419,11 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
               UpdatedAt = GETDATE()
           WHEN NOT MATCHED THEN
             INSERT (UserId, FirstName, LastName, Email, Company, JobTitle, Phone, Tags, CreatedAt)
-            VALUES (@userId, @firstName, @lastName, @email, @company, @jobTitle, @phone, @tags, GETDATE());
+            VALUES (@userId, @firstName, @lastName, @email, @company, @jobTitle, @phone, @tags, GETDATE())
+          OUTPUT INSERTED.ContactId;
         `;
         
-        await executeQuery(query, {
+        const result = await executeQuery(query, {
           userId: req.userId,
           firstName: contact.firstName,
           lastName: contact.lastName,
@@ -334,6 +433,11 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
           phone: contact.phone,
           tags: contact.tags
         });
+        
+        // Collect ContactId from result
+        if (result.recordset && result.recordset[0]) {
+          contactIds.push(result.recordset[0].ContactId);
+        }
         
         imported++;
       } catch (err) {
@@ -348,6 +452,7 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
       message: `Successfully imported ${imported} contacts`, 
       imported,
       skipped,
+      contactIds,
       errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
@@ -358,6 +463,66 @@ router.post('/import', authenticateToken, upload.single('file'), async (req, res
       fs.unlinkSync(req.file.path);
     }
     
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import contacts from JSON data (after preview confirmation)
+router.post('/import/confirm', authenticateToken, async (req, res) => {
+  try {
+    const { contacts } = req.body;
+    
+    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({ error: 'No contacts provided' });
+    }
+
+    // Insert contacts into database
+    let imported = 0;
+    let skipped = 0;
+    const contactIds = [];
+    const errors = [];
+
+    for (const contact of contacts) {
+      try {
+        const query = `
+          INSERT INTO Contacts (UserId, FirstName, LastName, Email, Company, JobTitle, Phone, Tags, CreatedAt)
+          OUTPUT INSERTED.ContactId
+          VALUES (@userId, @firstName, @lastName, @email, @company, @jobTitle, @phone, @tags, GETDATE())
+        `;
+        
+        const result = await executeQuery(query, {
+          userId: req.userId,
+          firstName: contact.firstName || '',
+          lastName: contact.lastName || '',
+          email: contact.email,
+          company: contact.company || '',
+          jobTitle: contact.jobTitle || '',
+          phone: contact.phone || '',
+          tags: contact.tags || 'CSV Import'
+        });
+        
+        if (result.recordset && result.recordset[0]) {
+          contactIds.push(result.recordset[0].ContactId);
+        }
+        
+        imported++;
+      } catch (err) {
+        logger.error('Failed to import contact', { email: contact.email, error: err.message });
+        errors.push(`Failed to import ${contact.email}: ${err.message}`);
+        skipped++;
+      }
+    }
+
+    logger.info(`Imported ${imported} contacts for user ${req.userId}`);
+    res.json({ 
+      message: `Successfully imported ${imported} contacts`, 
+      imported,
+      skipped,
+      contactIds,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    logger.error('CSV import confirmation failed', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });

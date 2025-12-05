@@ -76,7 +76,15 @@ export const contactsAPI = {
     return api.post('/contacts/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-  }
+  },
+  importPreview: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/contacts/import/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  importConfirm: (contacts) => api.post('/contacts/import/confirm', { contacts })
 };
 
 // Contact Lists API

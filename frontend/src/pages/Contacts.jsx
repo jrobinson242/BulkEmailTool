@@ -10,7 +10,7 @@ const Contacts = () => {
   const [lists, setLists] = useState([]);
   const [selectedList, setSelectedList] = useState(null);
   const [showListForm, setShowListForm] = useState(false);
-  const [listFormData, setListFormData] = useState({ name: '', description: '' });
+  const [listFormData, setListFormData] = useState({ name: '', description: '', isGlobal: false });
   const [editingListId, setEditingListId] = useState(null);
   const [showAddToListDialog, setShowAddToListDialog] = useState(false);
   const [contactToAssign, setContactToAssign] = useState(null);
@@ -29,6 +29,10 @@ const Contacts = () => {
   const [folderSearch, setFolderSearch] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [showCSVDialog, setShowCSVDialog] = useState(false);
+  const [importTargetList, setImportTargetList] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewContacts, setPreviewContacts] = useState([]);
+  const [selectedPreviewContacts, setSelectedPreviewContacts] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState({ show: false, type: null, id: null, name: null, count: null });
   const [successMessage, setSuccessMessage] = useState({ show: false, title: '', message: '' });
   const [formData, setFormData] = useState({
@@ -126,7 +130,7 @@ const Contacts = () => {
         setSuccessMessage({ show: true, title: 'Success', message: 'List created successfully' });
       }
       setShowListForm(false);
-      setListFormData({ name: '', description: '' });
+      setListFormData({ name: '', description: '', isGlobal: false });
       setEditingListId(null);
       await loadLists();
     } catch (err) {
@@ -135,7 +139,7 @@ const Contacts = () => {
   };
 
   const handleEditList = (list) => {
-    setListFormData({ name: list.Name, description: list.Description || '' });
+    setListFormData({ name: list.Name, description: list.Description || '', isGlobal: list.IsGlobal || false });
     setEditingListId(list.ListId);
     setShowListForm(true);
   };
@@ -260,15 +264,99 @@ const Contacts = () => {
     if (!file) return;
 
     try {
-      await contactsAPI.import(file);
-      setSuccessMessage({ show: true, title: 'Success', message: 'Contacts imported successfully!' });
-      await loadContacts();
+      const response = await contactsAPI.importPreview(file);
+      const { newContacts, existingCount, totalParsed } = response.data;
+      
+      if (newContacts.length === 0) {
+        alert(`All ${totalParsed} contacts in the CSV already exist in your database.`);
+        setShowCSVDialog(false);
+        e.target.value = '';
+        return;
+      }
+      
+      // Show preview modal with new contacts
+      setPreviewContacts(newContacts);
+      setSelectedPreviewContacts(newContacts.map((_, index) => index)); // Select all by default
       setShowCSVDialog(false);
+      setShowPreviewModal(true);
+      
+      if (existingCount > 0) {
+        console.log(`${existingCount} contacts already exist and will be skipped`);
+      }
     } catch (err) {
-      alert('Failed to import contacts: ' + (err.response?.data?.error || err.message));
+      alert('Failed to parse CSV: ' + (err.response?.data?.error || err.message));
     }
     // Reset the file input
     e.target.value = '';
+  };
+
+  const handleConfirmImport = async () => {
+    try {
+      // Get only selected contacts
+      const contactsToImport = selectedPreviewContacts.map(index => previewContacts[index]);
+      
+      if (contactsToImport.length === 0) {
+        alert('Please select at least one contact to import');
+        return;
+      }
+      
+      const response = await contactsAPI.importConfirm(contactsToImport);
+      const importedContactIds = response.data?.contactIds || [];
+      
+      // If a target list is selected and we have imported contact IDs, add them to the list
+      if (importTargetList && importedContactIds.length > 0) {
+        try {
+          await contactListsAPI.addContacts(importTargetList, importedContactIds);
+          setSuccessMessage({ 
+            show: true, 
+            title: 'Success', 
+            message: `${importedContactIds.length} contact(s) imported and added to list!` 
+          });
+        } catch (listErr) {
+          console.error('Failed to add to list:', listErr);
+          setSuccessMessage({ 
+            show: true, 
+            title: 'Partially Successful', 
+            message: `${importedContactIds.length} contact(s) imported but failed to add to list.` 
+          });
+        }
+      } else {
+        setSuccessMessage({ 
+          show: true, 
+          title: 'Success', 
+          message: `${importedContactIds.length} contact(s) imported successfully!` 
+        });
+      }
+      
+      await loadContacts();
+      if (importTargetList) {
+        await loadLists();
+      }
+      
+      // Reset states
+      setShowPreviewModal(false);
+      setPreviewContacts([]);
+      setSelectedPreviewContacts([]);
+      setImportTargetList(null);
+    } catch (err) {
+      alert('Failed to import contacts: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const togglePreviewContact = (index) => {
+    setSelectedPreviewContacts(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
+  };
+
+  const toggleAllPreviewContacts = () => {
+    if (selectedPreviewContacts.length === previewContacts.length) {
+      setSelectedPreviewContacts([]);
+    } else {
+      setSelectedPreviewContacts(previewContacts.map((_, index) => index));
+    }
   };
 
   // Filter folders and contacts based on search
@@ -513,10 +601,11 @@ const Contacts = () => {
             >
               <span onClick={() => setSelectedList(list.ListId)} style={{ marginRight: '10px' }}>
                 📋 {list.Name} ({list.ContactCount || 0})
+                {list.IsGlobal && <span style={{ marginLeft: '5px', fontSize: '12px', opacity: 0.8 }}>🌐</span>}
               </span>
               <div style={{ display: 'flex', gap: '5px' }}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setEditingListId(list.ListId); setListFormData({ name: list.Name, description: list.Description || '' }); setShowListForm(true); }}
+                  onClick={(e) => { e.stopPropagation(); setEditingListId(list.ListId); setListFormData({ name: list.Name, description: list.Description || '', isGlobal: list.IsGlobal || false }); setShowListForm(true); }}
                   style={{ 
                     background: 'none', 
                     border: 'none', 
@@ -549,7 +638,7 @@ const Contacts = () => {
 
           {/* New List Tab (always on the right) */}
           <div
-            onClick={() => { setEditingListId(null); setListFormData({ name: '', description: '' }); setShowListForm(true); }}
+            onClick={() => { setEditingListId(null); setListFormData({ name: '', description: '', isGlobal: false }); setShowListForm(true); }}
             style={{
               padding: '10px 20px',
               cursor: 'pointer',
@@ -595,7 +684,7 @@ const Contacts = () => {
               <label style={{ display: 'block', marginBottom: '5px' }}>List Name *</label>
               <input
                 type="text"
-                value={listFormData.name}
+                value={listFormData.name || ''}
                 onChange={(e) => setListFormData({ ...listFormData, name: e.target.value })}
                 placeholder="Enter list name"
                 style={{ width: '100%' }}
@@ -604,18 +693,33 @@ const Contacts = () => {
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
               <textarea
-                value={listFormData.description}
+                value={listFormData.description || ''}
                 onChange={(e) => setListFormData({ ...listFormData, description: e.target.value })}
                 placeholder="Optional description"
                 rows="3"
                 style={{ width: '100%' }}
               />
             </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={listFormData.isGlobal || false}
+                  onChange={(e) => setListFormData({ ...listFormData, isGlobal: e.target.checked })}
+                />
+                <span style={{ fontSize: '14px' }}>
+                  <strong>Global List</strong> - Visible to all users
+                </span>
+              </label>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px', marginLeft: '24px' }}>
+                Global lists can be seen and used by all users in your organization
+              </p>
+            </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowListForm(false); setEditingListId(null); setListFormData({ name: '', description: '' }); }} className="btn btn-secondary">
+              <button onClick={() => { setShowListForm(false); setEditingListId(null); setListFormData({ name: '', description: '', isGlobal: false }); }} className="btn btn-secondary">
                 Cancel
               </button>
-              <button onClick={editingListId ? () => handleEditList(editingListId) : handleCreateList} className="btn btn-primary" disabled={!listFormData.name.trim()}>
+              <button onClick={handleCreateList} className="btn btn-primary" disabled={!listFormData.name || !listFormData.name.trim()}>
                 {editingListId ? 'Update' : 'Create'}
               </button>
             </div>
@@ -703,7 +807,7 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
               </pre>
             </div>
             <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
-              <strong>Note:</strong> Duplicate emails will be updated with the new information. Invalid rows will be skipped.
+              <strong>Note:</strong> You'll be able to review new contacts before importing. Duplicate emails will be skipped.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -1052,6 +1156,159 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
         message={successMessage.message}
         onClose={() => setSuccessMessage({ show: false, title: '', message: '' })}
       />
+
+      {/* CSV Import Preview Modal */}
+      {showPreviewModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '8px',
+            width: '90%',
+            maxWidth: '800px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: '16px' }}>Preview New Contacts</h2>
+            <p style={{ marginBottom: '16px', color: '#666' }}>
+              {previewContacts.length} new contact{previewContacts.length !== 1 ? 's' : ''} found. 
+              Select the contacts you want to import:
+            </p>
+            
+            {lists.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Add imported contacts to list (optional):
+                </label>
+                <select 
+                  value={importTargetList || ''} 
+                  onChange={(e) => setImportTargetList(e.target.value ? parseInt(e.target.value) : null)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '8px', 
+                    borderRadius: '4px', 
+                    border: '1px solid #ddd',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">-- Don't add to any list --</option>
+                  {lists.map(list => (
+                    <option key={list.ListId} value={list.ListId}>
+                      {list.Name} ({list.ContactCount} contacts)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div style={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              border: '1px solid #ddd', 
+              borderRadius: '4px',
+              marginBottom: '16px'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f5f5f5' }}>
+                  <tr>
+                    <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedPreviewContacts.length === previewContacts.length}
+                        onChange={toggleAllPreviewContacts}
+                      />
+                    </th>
+                    <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Name</th>
+                    <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Email</th>
+                    <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Company</th>
+                    <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Job Title</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewContacts.map((contact, index) => (
+                    <tr 
+                      key={index}
+                      style={{ 
+                        backgroundColor: selectedPreviewContacts.includes(index) ? '#f0f8ff' : 'white',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => togglePreviewContact(index)}
+                    >
+                      <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedPreviewContacts.includes(index)}
+                          onChange={() => togglePreviewContact(index)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>
+                        {contact.firstName} {contact.lastName}
+                      </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{contact.email}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{contact.company}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{contact.jobTitle}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ color: '#666', fontSize: '14px' }}>
+                {selectedPreviewContacts.length} of {previewContacts.length} selected
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setPreviewContacts([]);
+                    setSelectedPreviewContacts([]);
+                    setImportTargetList(null);
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmImport}
+                  disabled={selectedPreviewContacts.length === 0}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: selectedPreviewContacts.length === 0 ? 'not-allowed' : 'pointer',
+                    backgroundColor: selectedPreviewContacts.length === 0 ? '#ccc' : '#007bff',
+                    color: 'white',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Import {selectedPreviewContacts.length} Contact{selectedPreviewContacts.length !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -12,8 +12,8 @@ router.get('/', authenticateToken, async (req, res) => {
              COUNT(clm.ContactId) as ContactCount
       FROM ContactLists cl
       LEFT JOIN ContactListMembers clm ON cl.ListId = clm.ListId
-      WHERE cl.UserId = @userId
-      GROUP BY cl.ListId, cl.UserId, cl.Name, cl.Description, cl.CreatedAt, cl.UpdatedAt
+      WHERE cl.UserId = @userId OR cl.IsGlobal = 1
+      GROUP BY cl.ListId, cl.UserId, cl.Name, cl.Description, cl.CreatedAt, cl.UpdatedAt, cl.IsGlobal
       ORDER BY cl.CreatedAt DESC
     `;
     const result = await executeQuery(query, { userId: req.userId });
@@ -29,7 +29,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const listQuery = `
       SELECT * FROM ContactLists 
-      WHERE ListId = @listId AND UserId = @userId
+      WHERE ListId = @listId AND (UserId = @userId OR IsGlobal = 1)
     `;
     const listResult = await executeQuery(listQuery, {
       listId: req.params.id,
@@ -44,12 +44,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
       SELECT c.*, clm.AddedAt
       FROM Contacts c
       INNER JOIN ContactListMembers clm ON c.ContactId = clm.ContactId
-      WHERE clm.ListId = @listId AND c.UserId = @userId
+      WHERE clm.ListId = @listId
       ORDER BY clm.AddedAt DESC
     `;
     const contactsResult = await executeQuery(contactsQuery, {
-      listId: req.params.id,
-      userId: req.userId
+      listId: req.params.id
     });
     
     res.json({
@@ -65,22 +64,23 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create new list
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, isGlobal } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'List name is required' });
     }
     
     const query = `
-      INSERT INTO ContactLists (UserId, Name, Description, CreatedAt)
+      INSERT INTO ContactLists (UserId, Name, Description, IsGlobal, CreatedAt)
       OUTPUT INSERTED.*
-      VALUES (@userId, @name, @description, GETDATE())
+      VALUES (@userId, @name, @description, @isGlobal, GETDATE())
     `;
     
     const result = await executeQuery(query, {
       userId: req.userId,
       name,
-      description: description || ''
+      description: description || '',
+      isGlobal: isGlobal || false
     });
     
     res.status(201).json(result.recordset[0]);
@@ -93,11 +93,11 @@ router.post('/', authenticateToken, async (req, res) => {
 // Update list
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, isGlobal } = req.body;
     
     const query = `
       UPDATE ContactLists 
-      SET Name = @name, Description = @description, UpdatedAt = GETDATE()
+      SET Name = @name, Description = @description, IsGlobal = @isGlobal, UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE ListId = @listId AND UserId = @userId
     `;
@@ -106,7 +106,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       listId: req.params.id,
       userId: req.userId,
       name,
-      description: description || ''
+      description: description || '',
+      isGlobal: isGlobal !== undefined ? isGlobal : false
     });
     
     if (result.recordset.length === 0) {

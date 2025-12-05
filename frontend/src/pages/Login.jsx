@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './Login.css';
@@ -9,12 +9,14 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const callbackProcessed = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const code = params.get('code');
 
-    if (code) {
+    if (code && !callbackProcessed.current) {
+      callbackProcessed.current = true;
       setLoading(true);
       handleCallback(code)
         .then(() => {
@@ -23,6 +25,7 @@ const Login = () => {
         .catch((err) => {
           setError('Authentication failed. Please try again.');
           setLoading(false);
+          callbackProcessed.current = false;
         });
     } else if (isAuthenticated) {
       navigate('/');
