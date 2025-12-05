@@ -9,6 +9,7 @@ const EmailWorker = require('./workers/emailWorker');
 // Import routes
 const authRoutes = require('./routes/auth');
 const contactRoutes = require('./routes/contacts');
+const contactListRoutes = require('./routes/contactLists');
 const templateRoutes = require('./routes/templates');
 const campaignRoutes = require('./routes/campaigns');
 const analyticsRoutes = require('./routes/analytics');
@@ -61,6 +62,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/contact-lists', contactListRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/analytics', analyticsRoutes);

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { templatesAPI } from '../services/api.jsx';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import ConfirmModal from '../components/ConfirmModal.jsx';
 
 const Templates = () => {
   const [templates, setTemplates] = useState([]);
@@ -9,6 +10,8 @@ const Templates = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [viewingTemplate, setViewingTemplate] = useState(null);
+  const [showHtmlSource, setShowHtmlSource] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ show: false, id: null });
   const [formData, setFormData] = useState({
     name: '',
     subject: '',
@@ -84,14 +87,14 @@ const Templates = () => {
     setFormData({ name: '', subject: '', body: '', description: '', isGlobal: false });
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this template?')) {
-      try {
-        await templatesAPI.delete(id);
-        await loadTemplates();
-      } catch (err) {
-        alert('Failed to delete template');
-      }
+  const handleDelete = async () => {
+    try {
+      await templatesAPI.delete(confirmDelete.id);
+      await loadTemplates();
+      setConfirmDelete({ show: false, id: null });
+    } catch (err) {
+      alert('Failed to delete template');
+      setConfirmDelete({ show: false, id: null });
     }
   };
 
@@ -125,25 +128,45 @@ const Templates = () => {
               onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
             />
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Email Body *</label>
-              <ReactQuill
-                theme="snow"
-                value={formData.body}
-                onChange={(content) => setFormData({ ...formData, body: content })}
-                modules={{
-                  toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'color': [] }, { 'background': [] }],
-                    [{ 'align': [] }],
-                    ['link', 'image'],
-                    ['clean']
-                  ]
-                }}
-                style={{ backgroundColor: 'white', minHeight: '200px' }}
-                placeholder="Type your email content here... Use {{FirstName}}, {{LastName}}, {{Company}}, etc. for personalization"
-              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                <label style={{ fontWeight: 'bold' }}>Email Body *</label>
+                <button 
+                  type="button" 
+                  onClick={() => setShowHtmlSource(!showHtmlSource)}
+                  className="btn"
+                  style={{ padding: '5px 15px', fontSize: '12px', backgroundColor: '#6c757d', color: 'white' }}
+                >
+                  {showHtmlSource ? '📝 Visual Editor' : '< > HTML Source'}
+                </button>
+              </div>
+              {showHtmlSource ? (
+                <textarea
+                  value={formData.body}
+                  onChange={(e) => setFormData({ ...formData, body: e.target.value })}
+                  rows="15"
+                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                  placeholder="Enter HTML code here..."
+                />
+              ) : (
+                <ReactQuill
+                  theme="snow"
+                  value={formData.body}
+                  onChange={(content) => setFormData({ ...formData, body: content })}
+                  modules={{
+                    toolbar: [
+                      [{ 'header': [1, 2, 3, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      [{ 'color': [] }, { 'background': [] }],
+                      [{ 'align': [] }],
+                      ['link', 'image'],
+                      ['clean']
+                    ]
+                  }}
+                  style={{ backgroundColor: 'white', minHeight: '200px' }}
+                  placeholder="Type your email content here... Use {{FirstName}}, {{LastName}}, {{Company}}, etc. for personalization"
+                />
+              )}
             </div>
             <textarea
               placeholder="Description (optional)"
@@ -214,27 +237,45 @@ const Templates = () => {
                   <td>{template.Subject}</td>
                   <td>{template.Description}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '5px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button 
                         onClick={() => handleView(template.TemplateId)} 
-                        className="btn btn-primary"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                        title="View template"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px'
+                        }}
                       >
-                        View
+                        👁️
                       </button>
                       <button 
                         onClick={() => handleEdit(template.TemplateId)} 
-                        className="btn"
-                        style={{ padding: '5px 10px', fontSize: '12px', backgroundColor: '#ffc107', color: '#000' }}
+                        title="Edit template"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px'
+                        }}
                       >
-                        Edit
+                        ✏️
                       </button>
                       <button 
-                        onClick={() => handleDelete(template.TemplateId)} 
-                        className="btn btn-danger"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                        onClick={() => setConfirmDelete({ show: true, id: template.TemplateId })} 
+                        title="Delete template"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px'
+                        }}
                       >
-                        Delete
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -333,6 +374,16 @@ const Templates = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        show={confirmDelete.show}
+        title="Delete Template"
+        message="Are you sure you want to delete this template? This action cannot be undone."
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete({ show: false, id: null })}
+        confirmText="Delete"
+        confirmStyle="danger"
+      />
     </div>
   );
 };

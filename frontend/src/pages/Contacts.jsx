@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { contactsAPI } from '../services/api.jsx';
+import { contactsAPI, contactListsAPI } from '../services/api.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
+import SuccessModal from '../components/SuccessModal.jsx';
 
 const Contacts = () => {
   const [contacts, setContacts] = useState([]);
+  const [filteredContacts, setFilteredContacts] = useState([]);
+  const [contactListMap, setContactListMap] = useState({}); // Map of ContactId -> array of list names
+  const [lists, setLists] = useState([]);
+  const [selectedList, setSelectedList] = useState(null);
+  const [showListForm, setShowListForm] = useState(false);
+  const [listFormData, setListFormData] = useState({ name: '', description: '' });
+  const [editingListId, setEditingListId] = useState(null);
+  const [showAddToListDialog, setShowAddToListDialog] = useState(false);
+  const [contactToAssign, setContactToAssign] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -18,6 +29,8 @@ const Contacts = () => {
   const [folderSearch, setFolderSearch] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [showCSVDialog, setShowCSVDialog] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ show: false, type: null, id: null, name: null, count: null });
+  const [successMessage, setSuccessMessage] = useState({ show: false, title: '', message: '' });
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -30,17 +43,149 @@ const Contacts = () => {
 
   useEffect(() => {
     loadContacts();
+    loadLists();
   }, []);
+
+  useEffect(() => {
+    // Filter contacts based on selected list
+    if (selectedList === null) {
+      setFilteredContacts(contacts);
+    } else {
+      loadListMembers(selectedList);
+    }
+  }, [selectedList, contacts]);
 
   const loadContacts = async () => {
     try {
       setLoading(true);
       const response = await contactsAPI.getAll();
       setContacts(response.data);
+      setFilteredContacts(response.data);
     } catch (err) {
       setError('Failed to load contacts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadListMembers = async (listId) => {
+    try {
+      const response = await contactListsAPI.getOne(listId);
+      const listContacts = response.data.contacts || [];
+      // Filter the contacts array to only show contacts in this list
+      const listContactIds = listContacts.map(c => c.ContactId);
+      const filtered = contacts.filter(c => listContactIds.includes(c.ContactId));
+      setFilteredContacts(filtered);
+    } catch (err) {
+      console.error('Failed to load list members', err);
+      setFilteredContacts([]);
+    }
+  };
+
+  const loadLists = async () => {
+    try {
+      const response = await contactListsAPI.getAll();
+      setLists(response.data);
+      await buildContactListMap(response.data);
+    } catch (err) {
+      console.error('Failed to load lists', err);
+    }
+  };
+
+  const buildContactListMap = async (allLists) => {
+    try {
+      const map = {};
+      
+      // Fetch members for each list
+      for (const list of allLists) {
+        const response = await contactListsAPI.getOne(list.ListId);
+        const members = response.data.contacts || [];
+        
+        members.forEach(contact => {
+          if (!map[contact.ContactId]) {
+            map[contact.ContactId] = [];
+          }
+          map[contact.ContactId].push(list.Name);
+        });
+      }
+      
+      setContactListMap(map);
+    } catch (err) {
+      console.error('Failed to build contact list map', err);
+    }
+  };
+
+  const handleCreateList = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingListId) {
+        await contactListsAPI.update(editingListId, listFormData);
+        setSuccessMessage({ show: true, title: 'Success', message: 'List updated successfully' });
+      } else {
+        await contactListsAPI.create(listFormData);
+        setSuccessMessage({ show: true, title: 'Success', message: 'List created successfully' });
+      }
+      setShowListForm(false);
+      setListFormData({ name: '', description: '' });
+      setEditingListId(null);
+      await loadLists();
+    } catch (err) {
+      alert('Failed to save list: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleEditList = (list) => {
+    setListFormData({ name: list.Name, description: list.Description || '' });
+    setEditingListId(list.ListId);
+    setShowListForm(true);
+  };
+
+  const handleDeleteList = async () => {
+    try {
+      await contactListsAPI.delete(confirmDelete.id);
+      setConfirmDelete({ show: false, type: null, id: null, name: null, count: null });
+      setSuccessMessage({ show: true, title: 'Success', message: 'List deleted successfully' });
+      await loadLists();
+      if (selectedList === confirmDelete.id) {
+        setSelectedList(null);
+      }
+    } catch (err) {
+      alert('Failed to delete list');
+      setConfirmDelete({ show: false, type: null, id: null, name: null, count: null });
+    }
+  };
+
+  const handleAddToList = async (listId) => {
+    const contactIds = contactToAssign ? [contactToAssign] : selectedContacts;
+    
+    if (contactIds.length === 0) {
+      alert('Please select contacts to add to the list');
+      return;
+    }
+    try {
+      await contactListsAPI.addContacts(listId, contactIds);
+      alert(`${contactIds.length} contact(s) added to list`);
+      setShowAddToListDialog(false);
+      setContactToAssign(null);
+      setSelectedContacts([]);
+      await loadLists();
+      if (selectedList) {
+        await loadListMembers(selectedList);
+      }
+    } catch (err) {
+      alert('Failed to add contacts to list: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleRemoveFromList = async (contactId) => {
+    if (!selectedList) return;
+    try {
+      await contactListsAPI.removeContact(selectedList, contactId);
+      setSuccessMessage({ show: true, title: 'Success', message: 'Contact removed from list' });
+      await loadListMembers(selectedList);
+      await loadLists(); // Refresh counts
+    } catch (err) {
+      alert('Failed to remove contact from list: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -103,10 +248,10 @@ const Contacts = () => {
   };
 
   const toggleAllContacts = () => {
-    if (selectedContacts.length === contacts.length) {
+    if (selectedContacts.length === filteredContacts.length) {
       setSelectedContacts([]);
     } else {
-      setSelectedContacts(contacts.map(c => c.ContactId));
+      setSelectedContacts(filteredContacts.map(c => c.ContactId));
     }
   };
 
@@ -116,7 +261,7 @@ const Contacts = () => {
 
     try {
       await contactsAPI.import(file);
-      alert('Contacts imported successfully!');
+      setSuccessMessage({ show: true, title: 'Success', message: 'Contacts imported successfully!' });
       await loadContacts();
       setShowCSVDialog(false);
     } catch (err) {
@@ -239,18 +384,18 @@ const Contacts = () => {
     });
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this contact?')) {
-      try {
-        setDeleting(true);
-        await contactsAPI.delete(id);
-        await loadContacts();
-      } catch (err) {
-        console.error('Delete error:', err);
-        alert('Failed to delete contact: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setDeleting(false);
-      }
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      await contactsAPI.delete(confirmDelete.id);
+      await loadContacts();
+      setConfirmDelete({ show: false, type: null, id: null, name: null, count: null });
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Failed to delete contact: ' + (err.response?.data?.error || err.message));
+      setConfirmDelete({ show: false, type: null, id: null, name: null, count: null });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -259,33 +404,35 @@ const Contacts = () => {
       alert('Please select contacts to delete');
       return;
     }
-
-    if (window.confirm(`Are you sure you want to delete ${selectedContacts.length} selected contact${selectedContacts.length !== 1 ? 's' : ''}? This cannot be undone!`)) {
-      try {
-        setDeleting(true);
-        // Delete each selected contact
-        let deleted = 0;
-        let failed = 0;
-        
-        for (const contactId of selectedContacts) {
-          try {
-            await contactsAPI.delete(contactId);
-            deleted++;
-          } catch (err) {
-            failed++;
-            console.error(`Failed to delete contact ${contactId}:`, err);
-          }
+    try {
+      setDeleting(true);
+      let deleted = 0;
+      let failed = 0;
+      
+      for (const contactId of selectedContacts) {
+        try {
+          await contactsAPI.delete(contactId);
+          deleted++;
+        } catch (err) {
+          failed++;
+          console.error(`Failed to delete contact ${contactId}:`, err);
         }
-        
-        alert(`Successfully deleted ${deleted} contact${deleted !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}`);
-        setSelectedContacts([]);
-        await loadContacts();
-      } catch (err) {
-        console.error('Bulk delete error:', err);
-        alert('Failed to delete contacts: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setDeleting(false);
       }
+      
+      setConfirmDelete({ show: false, type: null, id: null, name: null, count: null });
+      setSuccessMessage({ 
+        show: true, 
+        title: 'Success', 
+        message: `Successfully deleted ${deleted} contact${deleted !== 1 ? 's' : ''}${failed > 0 ? `, ${failed} failed` : ''}` 
+      });
+      setSelectedContacts([]);
+      await loadContacts();
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      alert('Failed to delete contacts: ' + (err.response?.data?.error || err.message));
+      setConfirmDelete({ show: false, type: null, id: null, name: null, count: null });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -300,9 +447,14 @@ const Contacts = () => {
             {loadingFolders ? 'Loading...' : 'Select Sources to Sync'}
           </button>
           {selectedContacts.length > 0 && (
-            <button onClick={handleBulkDelete} disabled={deleting} className="btn btn-danger" style={{ marginRight: '10px' }}>
-              {deleting ? '🔄 Deleting...' : `Delete Selected (${selectedContacts.length})`}
-            </button>
+            <>
+              <button onClick={() => setConfirmDelete({ show: true, type: 'bulk', id: null, name: null, count: selectedContacts.length })} disabled={deleting} className="btn btn-danger" style={{ marginRight: '10px' }}>
+                {deleting ? '🔄 Deleting...' : `Delete Selected (${selectedContacts.length})`}
+              </button>
+              <button onClick={() => setShowAddToListDialog(true)} className="btn btn-secondary" style={{ marginRight: '10px' }}>
+                Add to List
+              </button>
+            </>
           )}
           <button onClick={() => setShowCSVDialog(true)} className="btn btn-secondary" style={{ marginRight: '10px' }}>
             Upload CSV
@@ -314,6 +466,216 @@ const Contacts = () => {
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      {/* Contact Lists Tabs */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', borderBottom: '2px solid #ddd', paddingBottom: '5px' }}>
+          {/* All Contacts Tab */}
+          <div
+            onClick={() => setSelectedList(null)}
+            style={{
+              padding: '10px 20px',
+              cursor: 'pointer',
+              backgroundColor: selectedList === null ? '#007bff' : '#f8f9fa',
+              color: selectedList === null ? 'white' : '#333',
+              border: '1px solid #ddd',
+              borderBottom: selectedList === null ? 'none' : '1px solid #ddd',
+              borderRadius: '8px 8px 0 0',
+              fontWeight: selectedList === null ? 'bold' : 'normal',
+              transition: 'all 0.2s',
+              marginBottom: '-2px',
+              borderBottomColor: selectedList === null ? 'transparent' : '#ddd'
+            }}
+          >
+            All Contacts ({contacts.length})
+          </div>
+          
+          {/* List Tabs */}
+          {lists.map(list => (
+            <div
+              key={list.ListId}
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '10px 15px',
+                cursor: 'pointer',
+                backgroundColor: selectedList === list.ListId ? '#007bff' : '#f8f9fa',
+                color: selectedList === list.ListId ? 'white' : '#333',
+                border: '1px solid #ddd',
+                borderBottom: selectedList === list.ListId ? 'none' : '1px solid #ddd',
+                borderRadius: '8px 8px 0 0',
+                fontWeight: selectedList === list.ListId ? 'bold' : 'normal',
+                transition: 'all 0.2s',
+                marginBottom: '-2px',
+                borderBottomColor: selectedList === list.ListId ? 'transparent' : '#ddd'
+              }}
+            >
+              <span onClick={() => setSelectedList(list.ListId)} style={{ marginRight: '10px' }}>
+                📋 {list.Name} ({list.ContactCount || 0})
+              </span>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditingListId(list.ListId); setListFormData({ name: list.Name, description: list.Description || '' }); setShowListForm(true); }}
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    fontSize: '14px', 
+                    padding: '2px 5px',
+                    color: selectedList === list.ListId ? 'white' : '#666'
+                  }}
+                  title="Edit list"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete({ show: true, type: 'list', id: list.ListId, name: list.Name, count: null }); }}
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    fontSize: '14px', 
+                    padding: '2px 5px',
+                    color: selectedList === list.ListId ? 'white' : '#666'
+                  }}
+                  title="Delete list"
+                >
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* New List Tab (always on the right) */}
+          <div
+            onClick={() => { setEditingListId(null); setListFormData({ name: '', description: '' }); setShowListForm(true); }}
+            style={{
+              padding: '10px 20px',
+              cursor: 'pointer',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: '1px solid #28a745',
+              borderRadius: '8px 8px 0 0',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+              marginBottom: '-2px'
+            }}
+            title="Create new list"
+          >
+            ➕ New List
+          </div>
+        </div>
+      </div>
+
+      {/* List Form Modal */}
+      {showListForm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h2>{editingListId ? 'Edit List' : 'Create New List'}</h2>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>List Name *</label>
+              <input
+                type="text"
+                value={listFormData.name}
+                onChange={(e) => setListFormData({ ...listFormData, name: e.target.value })}
+                placeholder="Enter list name"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Description</label>
+              <textarea
+                value={listFormData.description}
+                onChange={(e) => setListFormData({ ...listFormData, description: e.target.value })}
+                placeholder="Optional description"
+                rows="3"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowListForm(false); setEditingListId(null); setListFormData({ name: '', description: '' }); }} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button onClick={editingListId ? () => handleEditList(editingListId) : handleCreateList} className="btn btn-primary" disabled={!listFormData.name.trim()}>
+                {editingListId ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add to List Modal */}
+      {showAddToListDialog && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            maxWidth: '400px',
+            width: '90%',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h2>
+              {contactToAssign 
+                ? 'Add Contact to List' 
+                : `Add ${selectedContacts.length} Contact${selectedContacts.length !== 1 ? 's' : ''} to List`}
+            </h2>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Select List</label>
+              <select
+                value={selectedList || ''}
+                onChange={(e) => setSelectedList(e.target.value ? parseInt(e.target.value) : null)}
+                style={{ width: '100%' }}
+              >
+                <option value="">Choose a list...</option>
+                {lists.map(list => (
+                  <option key={list.ListId} value={list.ListId}>
+                    {list.Name} ({list.ContactCount || 0})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowAddToListDialog(false); setContactToAssign(null); }} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button onClick={() => { handleAddToList(selectedList); setShowAddToListDialog(false); }} className="btn btn-primary" disabled={!selectedList}>
+                Add to List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCSVDialog && (
         <div className="card" style={{ marginBottom: '20px', backgroundColor: '#f9f9f9' }}>
@@ -547,9 +909,9 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
       )}
 
       <div className="card">
-        <h2>Contact List ({contacts.length})</h2>
-        {contacts.length === 0 ? (
-          <p>No contacts found. Sync from Outlook or add manually.</p>
+        <h2>Contact List ({filteredContacts.length})</h2>
+        {filteredContacts.length === 0 ? (
+          <p>No contacts found. {selectedList ? 'This list is empty.' : 'Sync from Outlook or add manually.'}</p>
         ) : (
           <table>
             <thead>
@@ -557,7 +919,7 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
                 <th style={{ width: '40px' }}>
                   <input
                     type="checkbox"
-                    checked={selectedContacts.length === contacts.length && contacts.length > 0}
+                    checked={selectedContacts.length === filteredContacts.length && filteredContacts.length > 0}
                     onChange={toggleAllContacts}
                     style={{ cursor: 'pointer' }}
                   />
@@ -566,11 +928,14 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
                 <th>Email</th>
                 <th>Company</th>
                 <th>Job Title</th>
-                <th>Actions</th>
+                <th>Lists</th>
+                <th style={{ width: '120px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {contacts.map((contact) => (
+              {filteredContacts.map((contact) => {
+                const assignedLists = contactListMap[contact.ContactId] || [];
+                return (
                 <tr key={contact.ContactId}>
                   <td>
                     <input
@@ -585,31 +950,108 @@ jane@example.com,Jane,Smith,Tech Corp,Developer,987-654-3210,tag3,tag4
                   <td>{contact.Company}</td>
                   <td>{contact.JobTitle}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '5px' }}>
+                    {assignedLists.length > 0 ? (
+                      <span style={{ fontSize: '12px', color: '#666' }}>
+                        {assignedLists.join(', ')}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>None</span>
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button 
                         onClick={() => handleEdit(contact)} 
                         disabled={deleting}
-                        className="btn btn-secondary"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                        title="Edit contact"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px'
+                        }}
                       >
-                        Edit
+                        ✏️
                       </button>
                       <button 
-                        onClick={() => handleDelete(contact.ContactId)} 
+                        onClick={() => setConfirmDelete({ show: true, type: 'contact', id: contact.ContactId, name: null, count: null })} 
                         disabled={deleting}
-                        className="btn btn-danger"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                        title="Delete contact"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px'
+                        }}
                       >
-                        {deleting ? '🔄' : 'Delete'}
+                        {deleting ? '🔄' : '🗑️'}
                       </button>
+                      {!selectedList && lists.length > 0 && (
+                        <button 
+                          onClick={() => { setContactToAssign(contact.ContactId); setShowAddToListDialog(true); }} 
+                          disabled={deleting}
+                          title="Add to list"
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            fontSize: '18px',
+                            padding: '4px'
+                          }}
+                        >
+                          ➕
+                        </button>
+                      )}
+                      {selectedList && (
+                        <button 
+                          onClick={() => handleRemoveFromList(contact.ContactId)} 
+                          disabled={deleting}
+                          title="Remove from list"
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            fontSize: '18px',
+                            padding: '4px'
+                          }}
+                        >
+                          ➖
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      <ConfirmModal
+        show={confirmDelete.show}
+        title={confirmDelete.type === 'list' ? 'Delete List' : confirmDelete.type === 'bulk' ? 'Delete Multiple Contacts' : 'Delete Contact'}
+        message={
+          confirmDelete.type === 'list' 
+            ? `Are you sure you want to delete the list "${confirmDelete.name}"? Contacts will not be deleted.`
+            : confirmDelete.type === 'bulk'
+            ? `Are you sure you want to delete ${confirmDelete.count} selected contact${confirmDelete.count !== 1 ? 's' : ''}? This cannot be undone!`
+            : 'Are you sure you want to delete this contact? This action cannot be undone.'
+        }
+        onConfirm={confirmDelete.type === 'list' ? handleDeleteList : confirmDelete.type === 'bulk' ? handleBulkDelete : handleDelete}
+        onCancel={() => setConfirmDelete({ show: false, type: null, id: null, name: null, count: null })}
+        confirmText="Delete"
+        confirmStyle="danger"
+      />
+
+      <SuccessModal
+        show={successMessage.show}
+        title={successMessage.title}
+        message={successMessage.message}
+        onClose={() => setSuccessMessage({ show: false, title: '', message: '' })}
+      />
     </div>
   );
 };

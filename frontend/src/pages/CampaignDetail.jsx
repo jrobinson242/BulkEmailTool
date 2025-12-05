@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { campaignsAPI, analyticsAPI, templatesAPI, contactsAPI } from '../services/api.jsx';
+import ConfirmModal from '../components/ConfirmModal';
+import SuccessModal from '../components/SuccessModal';
 
 const CampaignDetail = () => {
   const { id } = useParams();
@@ -20,6 +22,8 @@ const CampaignDetail = () => {
     contactIds: []
   });
   const [showEmailContent, setShowEmailContent] = useState(false);
+  const [confirmAction, setConfirmAction] = useState({ show: false, type: null });
+  const [successMessage, setSuccessMessage] = useState({ show: false, title: '', message: '' });
 
   useEffect(() => {
     loadCampaignData();
@@ -98,35 +102,33 @@ const CampaignDetail = () => {
       await campaignsAPI.update(id, formData);
       setIsEditing(false);
       await loadCampaignData();
-      alert('Campaign updated successfully!');
+      setSuccessMessage({ show: true, title: 'Success', message: 'Campaign updated successfully!' });
     } catch (err) {
       alert('Failed to update campaign: ' + (err.response?.data?.error || err.message));
     }
   };
 
   const handleStop = async () => {
-    if (!window.confirm('Are you sure you want to stop this campaign? It will be reset to draft status.')) {
-      return;
-    }
     try {
       await campaignsAPI.stop(id);
       await loadCampaignData();
-      alert('Campaign stopped successfully!');
+      setConfirmAction({ show: false, type: null });
+      setSuccessMessage({ show: true, title: 'Success', message: 'Campaign stopped successfully!' });
     } catch (err) {
       alert('Failed to stop campaign: ' + (err.response?.data?.error || err.message));
+      setConfirmAction({ show: false, type: null });
     }
   };
 
   const handleResend = async () => {
-    if (!window.confirm('Are you sure you want to resend this campaign?')) {
-      return;
-    }
     try {
       await campaignsAPI.send(id);
       await loadCampaignData();
-      alert('Campaign queued for sending!');
+      setConfirmAction({ show: false, type: null });
+      setSuccessMessage({ show: true, title: 'Success', message: 'Campaign queued for sending!' });
     } catch (err) {
       alert('Failed to resend campaign: ' + (err.response?.data?.error || err.message));
+      setConfirmAction({ show: false, type: null });
     }
   };
 
@@ -158,7 +160,7 @@ const CampaignDetail = () => {
         
         <div style={{ display: 'flex', gap: '10px' }}>
           {campaign.Status === 'sending' && (
-            <button onClick={handleStop} className="btn btn-danger">
+            <button onClick={() => setConfirmAction({ show: true, type: 'stop' })} className="btn btn-danger">
               Stop Campaign
             </button>
           )}
@@ -168,7 +170,7 @@ const CampaignDetail = () => {
               <button onClick={handleEdit} className="btn" style={{ backgroundColor: '#ffc107', color: '#000' }}>
                 Edit Campaign
               </button>
-              <button onClick={handleResend} className="btn btn-primary">
+              <button onClick={() => setConfirmAction({ show: true, type: 'resend' })} className="btn btn-primary">
                 Send Campaign
               </button>
             </>
@@ -376,6 +378,29 @@ const CampaignDetail = () => {
           </table>
         )}
       </div>
+
+      <ConfirmModal
+        show={confirmAction.show}
+        title={
+          confirmAction.type === 'stop' ? 'Stop Campaign' :
+          confirmAction.type === 'resend' ? 'Send Campaign' : ''
+        }
+        message={
+          confirmAction.type === 'stop' ? 'Are you sure you want to stop this campaign? It will be reset to draft status.' :
+          confirmAction.type === 'resend' ? 'Are you sure you want to resend this campaign?' : ''
+        }
+        onConfirm={confirmAction.type === 'stop' ? handleStop : handleResend}
+        onCancel={() => setConfirmAction({ show: false, type: null })}
+        confirmText="Confirm"
+        confirmStyle={confirmAction.type === 'stop' ? 'danger' : 'primary'}
+      />
+
+      <SuccessModal
+        show={successMessage.show}
+        title={successMessage.title}
+        message={successMessage.message}
+        onClose={() => setSuccessMessage({ show: false, title: '', message: '' })}
+      />
     </div>
   );
 };

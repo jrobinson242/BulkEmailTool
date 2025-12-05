@@ -79,6 +79,17 @@ export const contactsAPI = {
   }
 };
 
+// Contact Lists API
+export const contactListsAPI = {
+  getAll: () => api.get('/contact-lists'),
+  getOne: (id) => api.get(`/contact-lists/${id}`),
+  create: (data) => api.post('/contact-lists', data),
+  update: (id, data) => api.put(`/contact-lists/${id}`, data),
+  delete: (id) => api.delete(`/contact-lists/${id}`),
+  addContacts: (id, contactIds) => api.post(`/contact-lists/${id}/contacts`, { contactIds }),
+  removeContact: (id, contactId) => api.delete(`/contact-lists/${id}/contacts/${contactId}`)
+};
+
 // Templates API
 export const templatesAPI = {
   getAll: () => api.get('/templates'),

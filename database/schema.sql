@@ -29,6 +29,33 @@ CREATE TABLE Contacts (
 CREATE INDEX IX_Contacts_UserId ON Contacts(UserId);
 CREATE INDEX IX_Contacts_Email ON Contacts(Email);
 
+-- Contact Lists table
+CREATE TABLE ContactLists (
+    ListId INT IDENTITY(1,1) PRIMARY KEY,
+    UserId NVARCHAR(255) NOT NULL,
+    Name NVARCHAR(255) NOT NULL,
+    Description NVARCHAR(MAX),
+    CreatedAt DATETIME2 DEFAULT GETDATE(),
+    UpdatedAt DATETIME2,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+);
+
+CREATE INDEX IX_ContactLists_UserId ON ContactLists(UserId);
+
+-- Contact List Members (many-to-many relationship)
+CREATE TABLE ContactListMembers (
+    ListMemberId INT IDENTITY(1,1) PRIMARY KEY,
+    ListId INT NOT NULL,
+    ContactId INT NOT NULL,
+    AddedAt DATETIME2 DEFAULT GETDATE(),
+    FOREIGN KEY (ListId) REFERENCES ContactLists(ListId) ON DELETE CASCADE,
+    FOREIGN KEY (ContactId) REFERENCES Contacts(ContactId) ON DELETE NO ACTION,
+    UNIQUE (ListId, ContactId)
+);
+
+CREATE INDEX IX_ContactListMembers_ListId ON ContactListMembers(ListId);
+CREATE INDEX IX_ContactListMembers_ContactId ON ContactListMembers(ContactId);
+
 -- Templates table
 CREATE TABLE Templates (
     TemplateId INT IDENTITY(1,1) PRIMARY KEY,

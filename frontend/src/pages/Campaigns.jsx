@@ -2,16 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { campaignsAPI, templatesAPI, contactsAPI } from '../services/api.jsx';
+import { campaignsAPI, templatesAPI, contactsAPI, contactListsAPI } from '../services/api.jsx';
+import ConfirmModal from '../components/ConfirmModal.jsx';
+import SuccessModal from '../components/SuccessModal.jsx';
 
 const Campaigns = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [lists, setLists] = useState([]);
+  const [selectedLists, setSelectedLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [showHtmlSource, setShowHtmlSource] = useState(false);
+  const [confirmAction, setConfirmAction] = useState({ show: false, type: null, id: null });
+  const [successMessage, setSuccessMessage] = useState({ show: false, title: '', message: '' });
   const [newTemplate, setNewTemplate] = useState({ name: '', subject: '', body: '', isGlobal: false });
   const [formData, setFormData] = useState({
     name: '',
@@ -26,14 +33,16 @@ const Campaigns = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [campaignsRes, templatesRes, contactsRes] = await Promise.all([
+      const [campaignsRes, templatesRes, contactsRes, listsRes] = await Promise.all([
         campaignsAPI.getAll(),
         templatesAPI.getAll(),
-        contactsAPI.getAll()
+        contactsAPI.getAll(),
+        contactListsAPI.getAll()
       ]);
       setCampaigns(campaignsRes.data);
       setTemplates(templatesRes.data);
       setContacts(contactsRes.data);
+      setLists(listsRes.data);
     } catch (err) {
       console.error('Failed to load data', err);
     } finally {
@@ -53,39 +62,39 @@ const Campaigns = () => {
     }
   };
 
-  const handleSend = async (id) => {
-    if (window.confirm('Are you sure you want to send this campaign?')) {
-      try {
-        await campaignsAPI.send(id);
-        alert('Campaign queued for sending!');
-        await loadData();
-      } catch (err) {
-        alert('Failed to send campaign: ' + err.response?.data?.error);
-      }
+  const handleSend = async () => {
+    try {
+      await campaignsAPI.send(confirmAction.id);
+      setConfirmAction({ show: false, type: null, id: null });
+      setSuccessMessage({ show: true, title: 'Success', message: 'Campaign queued for sending!' });
+      await loadData();
+    } catch (err) {
+      alert('Failed to send campaign: ' + err.response?.data?.error);
+      setConfirmAction({ show: false, type: null, id: null });
     }
   };
 
-  const handleStop = async (id) => {
-    if (window.confirm('Are you sure you want to stop this campaign?')) {
-      try {
-        await campaignsAPI.stop(id);
-        alert('Campaign stopped successfully!');
-        await loadData();
-      } catch (err) {
-        alert('Failed to stop campaign: ' + err.response?.data?.error);
-      }
+  const handleStop = async () => {
+    try {
+      await campaignsAPI.stop(confirmAction.id);
+      setConfirmAction({ show: false, type: null, id: null });
+      setSuccessMessage({ show: true, title: 'Success', message: 'Campaign stopped successfully!' });
+      await loadData();
+    } catch (err) {
+      alert('Failed to stop campaign: ' + err.response?.data?.error);
+      setConfirmAction({ show: false, type: null, id: null });
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
-      try {
-        await campaignsAPI.delete(id);
-        alert('Campaign deleted successfully!');
-        await loadData();
-      } catch (err) {
-        alert('Failed to delete campaign: ' + err.response?.data?.error);
-      }
+  const handleDelete = async () => {
+    try {
+      await campaignsAPI.delete(confirmAction.id);
+      setConfirmAction({ show: false, type: null, id: null });
+      setSuccessMessage({ show: true, title: 'Success', message: 'Campaign deleted successfully!' });
+      await loadData();
+    } catch (err) {
+      alert('Failed to delete campaign: ' + err.response?.data?.error);
+      setConfirmAction({ show: false, type: null, id: null });
     }
   };
 
@@ -102,6 +111,59 @@ const Campaigns = () => {
     setFormData(prev => ({
       ...prev,
       contactIds: contacts.map(c => c.ContactId)
+    }));
+  };
+
+  const toggleList = async (listId) => {
+    if (selectedLists.includes(listId)) {
+      // Deselect the list
+      setSelectedLists(prev => prev.filter(id => id !== listId));
+      // Remove contacts from this list
+      try {
+        const response = await contactListsAPI.getOne(listId);
+        const listContacts = response.data.contacts || [];
+        const listContactIds = listContacts.map(c => c.ContactId);
+        setFormData(prev => ({
+          ...prev,
+          contactIds: prev.contactIds.filter(id => !listContactIds.includes(id))
+        }));
+      } catch (err) {
+        console.error('Failed to load list contacts', err);
+      }
+    } else {
+      // Select the list
+      setSelectedLists(prev => [...prev, listId]);
+      // Add contacts from this list
+      try {
+        const response = await contactListsAPI.getOne(listId);
+        const listContacts = response.data.contacts || [];
+        const listContactIds = listContacts.map(c => c.ContactId);
+        setFormData(prev => ({
+          ...prev,
+          contactIds: [...new Set([...prev.contactIds, ...listContactIds])]
+        }));
+      } catch (err) {
+        console.error('Failed to load list contacts', err);
+      }
+    }
+  };
+
+  const selectAllLists = async () => {
+    setSelectedLists(lists.map(l => l.ListId));
+    // Collect all unique contact IDs from all lists
+    const allContactIds = new Set(formData.contactIds);
+    for (const list of lists) {
+      try {
+        const response = await contactListsAPI.getOne(list.ListId);
+        const listContacts = response.data.contacts || [];
+        listContacts.forEach(c => allContactIds.add(c.ContactId));
+      } catch (err) {
+        console.error('Failed to load list contacts', err);
+      }
+    }
+    setFormData(prev => ({
+      ...prev,
+      contactIds: Array.from(allContactIds)
     }));
   };
   const handleTemplateChange = (e) => {
@@ -139,7 +201,7 @@ const Campaigns = () => {
       setFormData({ ...formData, templateId: response.data.TemplateId });
       setShowTemplateForm(false);
       setNewTemplate({ name: '', subject: '', body: '', isGlobal: false });
-      alert('Template created successfully!');
+      setSuccessMessage({ show: true, title: 'Success', message: 'Template created successfully!' });
     } catch (err) {
       console.error('Template creation error:', err);
       alert('Failed to create template: ' + (err.response?.data?.error || err.message));
@@ -199,25 +261,45 @@ const Campaigns = () => {
                 style={{ marginBottom: '10px' }}
               />
               <div style={{ marginBottom: '10px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Email Body *</label>
-                <ReactQuill
-                  theme="snow"
-                  value={newTemplate.body}
-                  onChange={(content) => setNewTemplate({ ...newTemplate, body: content })}
-                  modules={{
-                    toolbar: [
-                      [{ 'header': [1, 2, 3, false] }],
-                      ['bold', 'italic', 'underline', 'strike'],
-                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                      [{ 'color': [] }, { 'background': [] }],
-                      [{ 'align': [] }],
-                      ['link', 'image'],
-                      ['clean']
-                    ]
-                  }}
-                  style={{ backgroundColor: 'white', minHeight: '200px' }}
-                  placeholder="Type your email content here... Use {{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}} for personalization"
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={{ fontWeight: 'bold' }}>Email Body *</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowHtmlSource(!showHtmlSource)}
+                    className="btn"
+                    style={{ padding: '5px 15px', fontSize: '12px', backgroundColor: '#6c757d', color: 'white' }}
+                  >
+                    {showHtmlSource ? '📝 Visual Editor' : '< > HTML Source'}
+                  </button>
+                </div>
+                {showHtmlSource ? (
+                  <textarea
+                    value={newTemplate.body}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, body: e.target.value })}
+                    rows="15"
+                    style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                    placeholder="Enter HTML code here..."
+                  />
+                ) : (
+                  <ReactQuill
+                    theme="snow"
+                    value={newTemplate.body}
+                    onChange={(content) => setNewTemplate({ ...newTemplate, body: content })}
+                    modules={{
+                      toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'align': [] }],
+                        ['link', 'image'],
+                        ['clean']
+                      ]
+                    }}
+                    style={{ backgroundColor: 'white', minHeight: '200px' }}
+                    placeholder="Type your email content here... Use {{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}} for personalization"
+                  />
+                )}
               </div>
               <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px', fontSize: '14px', marginBottom: '15px' }}>
                 <strong>Available Placeholders:</strong> <code>{'{{FirstName}}, {{LastName}}, {{Email}}, {{Company}}, {{JobTitle}}'}</code>
@@ -278,25 +360,59 @@ const Campaigns = () => {
 
             <div style={{ margin: '20px 0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <label><strong>Select Contacts ({formData.contactIds.length} selected)</strong></label>
-                <button type="button" onClick={selectAll} className="btn btn-secondary" style={{ padding: '5px 15px' }}>
-                  Select All
-                </button>
+                <label><strong>Select Recipients ({formData.contactIds.length} selected)</strong></label>
               </div>
-              <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
-                {contacts.map(contact => (
-                  <div key={contact.ContactId} style={{ padding: '5px 0' }}>
-                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={formData.contactIds.includes(contact.ContactId)}
-                        onChange={() => toggleContact(contact.ContactId)}
-                        style={{ marginRight: '10px', width: 'auto' }}
-                      />
-                      {contact.FirstName} {contact.LastName} ({contact.Email})
-                    </label>
+
+              {/* Lists Selection */}
+              {lists.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                    <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Contact Lists ({selectedLists.length} selected)</label>
+                    <button type="button" onClick={selectAllLists} className="btn btn-secondary" style={{ padding: '5px 15px', fontSize: '12px' }}>
+                      Select All Lists
+                    </button>
                   </div>
-                ))}
+                  <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px', backgroundColor: '#f9f9f9' }}>
+                    {lists.map(list => (
+                      <div key={list.ListId} style={{ padding: '5px 0' }}>
+                        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLists.includes(list.ListId)}
+                            onChange={() => toggleList(list.ListId)}
+                            style={{ marginRight: '10px', width: 'auto' }}
+                          />
+                          📋 {list.Name} ({list.ContactCount || 0} contacts)
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Individual Contacts Selection */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Individual Contacts</label>
+                  <button type="button" onClick={selectAll} className="btn btn-secondary" style={{ padding: '5px 15px', fontSize: '12px' }}>
+                    Select All Contacts
+                  </button>
+                </div>
+                <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '10px' }}>
+                  {contacts.map(contact => (
+                    <div key={contact.ContactId} style={{ padding: '5px 0' }}>
+                      <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.contactIds.includes(contact.ContactId)}
+                          onChange={() => toggleContact(contact.ContactId)}
+                          style={{ marginRight: '10px', width: 'auto' }}
+                        />
+                        {contact.FirstName} {contact.LastName} ({contact.Email})
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -339,34 +455,63 @@ const Campaigns = () => {
                   <td>{campaign.TotalSent || 0}</td>
                   <td>{campaign.SuccessCount || 0}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      <Link to={`/campaigns/${campaign.CampaignId}`} className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: '12px' }}>
-                        View
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <Link 
+                        to={`/campaigns/${campaign.CampaignId}`} 
+                        title="View campaign details"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px',
+                          textDecoration: 'none'
+                        }}
+                      >
+                        👁️
                       </Link>
                       {campaign.Status === 'draft' && (
                         <button 
-                          onClick={() => handleSend(campaign.CampaignId)} 
-                          className="btn btn-primary"
-                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                          onClick={() => setConfirmAction({ show: true, type: 'send', id: campaign.CampaignId })} 
+                          title="Send campaign"
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            fontSize: '18px',
+                            padding: '4px'
+                          }}
                         >
-                          Send
+                          📤
                         </button>
                       )}
                       {campaign.Status === 'sending' && (
                         <button 
-                          onClick={() => handleStop(campaign.CampaignId)} 
-                          className="btn btn-danger"
-                          style={{ padding: '5px 10px', fontSize: '12px' }}
+                          onClick={() => setConfirmAction({ show: true, type: 'stop', id: campaign.CampaignId })} 
+                          title="Stop campaign"
+                          style={{ 
+                            background: 'none', 
+                            border: 'none', 
+                            cursor: 'pointer', 
+                            fontSize: '18px',
+                            padding: '4px'
+                          }}
                         >
-                          Stop
+                          ⏸️
                         </button>
                       )}
                       <button 
-                        onClick={() => handleDelete(campaign.CampaignId)} 
-                        className="btn btn-danger"
-                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                        onClick={() => setConfirmAction({ show: true, type: 'delete', id: campaign.CampaignId })} 
+                        title="Delete campaign"
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '18px',
+                          padding: '4px'
+                        }}
                       >
-                        Delete
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -376,6 +521,35 @@ const Campaigns = () => {
           </table>
         )}
       </div>
+
+      <ConfirmModal
+        show={confirmAction.show}
+        title={
+          confirmAction.type === 'send' ? 'Send Campaign' :
+          confirmAction.type === 'stop' ? 'Stop Campaign' :
+          confirmAction.type === 'delete' ? 'Delete Campaign' : ''
+        }
+        message={
+          confirmAction.type === 'send' ? 'Are you sure you want to send this campaign?' :
+          confirmAction.type === 'stop' ? 'Are you sure you want to stop this campaign?' :
+          confirmAction.type === 'delete' ? 'Are you sure you want to delete this campaign? This action cannot be undone.' : ''
+        }
+        onConfirm={
+          confirmAction.type === 'send' ? handleSend :
+          confirmAction.type === 'stop' ? handleStop :
+          confirmAction.type === 'delete' ? handleDelete : null
+        }
+        onCancel={() => setConfirmAction({ show: false, type: null, id: null })}
+        confirmText={confirmAction.type === 'delete' ? 'Delete' : 'Confirm'}
+        confirmStyle={confirmAction.type === 'delete' ? 'danger' : 'primary'}
+      />
+
+      <SuccessModal
+        show={successMessage.show}
+        title={successMessage.title}
+        message={successMessage.message}
+        onClose={() => setSuccessMessage({ show: false, title: '', message: '' })}
+      />
     </div>
   );
 };
