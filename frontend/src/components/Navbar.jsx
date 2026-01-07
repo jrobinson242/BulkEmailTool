@@ -10,7 +10,7 @@ const Navbar = () => {
     <nav className="navbar">
       <div className="navbar-brand">
         <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>
-          RSC Bulk Email Tool
+          RSC Marketing Tool
         </Link>
       </div>
       
