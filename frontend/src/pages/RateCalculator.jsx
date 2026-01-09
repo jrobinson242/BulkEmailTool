@@ -283,14 +283,10 @@ const RateCalculator = () => {
             </div>
 
             <div className="result-item">
-              <label>Gross Profit</label>
+              <label>Gross Profit per Hour</label>
               <div className="result-value">${calculations.grossProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             </div>
 
-            <div className="result-item">
-              <label>GP/Hour</label>
-              <div className="result-value">${calculations.gpPerHour.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            </div>
           </div>
 
           <div className="calculation-notes">
@@ -300,7 +296,6 @@ const RateCalculator = () => {
               <li><strong>Markup %:</strong> ((Bill Rate - Pay Rate) / Pay Rate) × 100 = markup over pay</li>
               <li><strong>GP %:</strong> (Bill Rate - Loaded Cost) / Bill Rate × 100 = profit margin on the bill</li>
               <li><strong>Gross Profit:</strong> Bill Rate - Loaded Cost = total profit dollars</li>
-              <li><strong>GP/Hour:</strong> Gross Profit / 173.2 hours/month = hourly profit</li>
               <li><strong>Smart Calculation:</strong> Enter any two of (Bill Rate, Pay Rate, GP%) and the third will be calculated</li>
               <li>Monthly hours calculated as 40 hours/week × 4.33 weeks/month = 173.2 hours</li>
               <li>Discount % is applied to the final bill rate</li>
