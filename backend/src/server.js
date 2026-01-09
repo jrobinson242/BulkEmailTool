@@ -17,6 +17,7 @@ const queueRoutes = require('./routes/queue');
 const adminRoutes = require('./routes/admin');
 const admin365Routes = require('./routes/admin365');
 const rateCalculatorRoutes = require('./routes/rateCalculator');
+const rateClientsRoutes = require('./routes/rateClients');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -72,7 +73,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/queue', queueRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', admin365Routes);
-app.use('/api/rate-calculator', rateCalculatorRoutes);
+// app.use('/api/rate-calculator', rateCalculatorRoutes); // Disabled - using local DB instead of SharePoint
+app.use('/api/rate-calculator', rateClientsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { rateCalculatorAPI } from '../services/api.jsx';
+import { rateClientsAPI } from '../services/rateClientsAPI';
+import ClientModal from '../components/ClientModal';
 import '../styles/RateCalculator.css';
 
 const RateCalculator = () => {
   const [clients, setClients] = useState([]);
   const [discounts, setDiscounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showClientModal, setShowClientModal] = useState(false);
   
   const [formData, setFormData] = useState({
     client: '',
@@ -34,12 +37,10 @@ const RateCalculator = () => {
   const loadClientAndDiscountData = async () => {
     try {
       setLoading(true);
-      const [clientsResponse, discountsResponse] = await Promise.all([
-        rateCalculatorAPI.getClients(),
-        rateCalculatorAPI.getDiscounts()
-      ]);
+      const clientsResponse = await rateClientsAPI.getClients();
       setClients(clientsResponse.data || []);
-      setDiscounts(discountsResponse.data || []);
+      // Discounts removed - user can manually enter discount percentage
+      setDiscounts([]);
     } catch (err) {
       console.error('Failed to load calculator data', err);
     } finally {
@@ -115,7 +116,16 @@ const RateCalculator = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    const updatedData = { ...formData, [name]: value };
+    let updatedData = { ...formData, [name]: value };
+    
+    // When client is selected, auto-populate discount from client's TotalDiscounts
+    if (name === 'client' && value) {
+      const selectedClient = clients.find(c => c.ClientId === parseInt(value));
+      if (selectedClient && selectedClient.TotalDiscounts) {
+        updatedData.discount = selectedClient.TotalDiscounts;
+      }
+    }
+    
     setFormData(updatedData);
     calculateValues(updatedData);
   };
@@ -138,7 +148,16 @@ const RateCalculator = () => {
           <h2>Input Parameters</h2>
           <form className="calculator-form">
             <div className="form-group">
-              <label htmlFor="client">Client *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label htmlFor="client">Client *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowClientModal(true)}
+                  className="client-management-link"
+                >
+                  Manage Clients
+                </button>
+              </div>
               <select
                 id="client"
                 name="client"
@@ -148,8 +167,8 @@ const RateCalculator = () => {
               >
                 <option value="">Select a client...</option>
                 {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
+                  <option key={client.ClientId} value={client.ClientId}>
+                    {client.Title}
                   </option>
                 ))}
               </select>
@@ -303,6 +322,12 @@ const RateCalculator = () => {
           </div>
         </div>
       </div>
+
+      <ClientModal
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        onClientCreated={loadClientAndDiscountData}
+      />
     </div>
   );
 };

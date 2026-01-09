@@ -39,6 +39,23 @@
   font-size: 0.95rem;
 }
 
+.client-management-link {
+  background: none;
+  border: none;
+  color: #0078d4;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  margin: 0;
+  transition: color 0.2s;
+}
+
+.client-management-link:hover {
+  color: #005a9e;
+  text-decoration: underline;
+}
+
 .form-group input,
 .form-group select {
   padding: 10px 12px;
