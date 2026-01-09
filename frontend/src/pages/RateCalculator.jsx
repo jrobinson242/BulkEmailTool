@@ -76,10 +76,10 @@ const RateCalculator = () => {
     // Recalculate loaded cost if pay rate was updated
     loadedCost = payRate * LOADED_COST_MULTIPLIER;
 
-    // Calculate Markup % = (Bill Rate / Pay Rate) × 100
+    // Calculate Markup % = ((Bill Rate - Pay Rate) / Pay Rate) × 100
     let markupPercent = 0;
     if (payRate > 0) {
-      markupPercent = (billRate / payRate) * 100;
+      markupPercent = ((billRate - payRate) / payRate) * 100;
     }
 
     // Calculate GP% = (Bill Rate - Loaded Cost) / Bill Rate × 100
@@ -258,7 +258,7 @@ const RateCalculator = () => {
             </div>
 
             <div className="result-item">
-              <label>Markup % (Bill Rate / Pay Rate)</label>
+              <label>Markup % ((Bill - Pay) / Pay)</label>
               <div className="result-value">{calculations.markupPercent.toFixed(2)}%</div>
             </div>
 
@@ -297,7 +297,7 @@ const RateCalculator = () => {
             <p><strong>Notes:</strong></p>
             <ul>
               <li><strong>Loaded Cost:</strong> Pay Rate × 1.18 (includes 18% for benefits, taxes, overhead)</li>
-              <li><strong>Markup %:</strong> (Bill Rate / Pay Rate) × 100 = how much you're marking up the pay rate</li>
+              <li><strong>Markup %:</strong> ((Bill Rate - Pay Rate) / Pay Rate) × 100 = markup over pay</li>
               <li><strong>GP %:</strong> (Bill Rate - Loaded Cost) / Bill Rate × 100 = profit margin on the bill</li>
               <li><strong>Gross Profit:</strong> Bill Rate - Loaded Cost = total profit dollars</li>
               <li><strong>GP/Hour:</strong> Gross Profit / 173.2 hours/month = hourly profit</li>
