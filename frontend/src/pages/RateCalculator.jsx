@@ -34,6 +34,18 @@ const RateCalculator = () => {
     loadClientAndDiscountData();
   }, []);
 
+  // Update form data when client list changes (e.g., after editing a client)
+  useEffect(() => {
+    if (formData.client && clients.length > 0) {
+      const selectedClient = clients.find(c => c.ClientId === parseInt(formData.client));
+      if (selectedClient && selectedClient.TotalDiscounts) {
+        const updatedData = { ...formData, discount: selectedClient.TotalDiscounts };
+        setFormData(updatedData);
+        calculateValues(updatedData);
+      }
+    }
+  }, [clients]);
+
   const loadClientAndDiscountData = async () => {
     try {
       setLoading(true);
@@ -46,6 +58,11 @@ const RateCalculator = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClientModalClose = () => {
+    setShowClientModal(false);
+    loadClientAndDiscountData(); // Refresh clients when modal closes
   };
 
   const calculateValues = (data) => {
@@ -325,7 +342,7 @@ const RateCalculator = () => {
 
       <ClientModal
         isOpen={showClientModal}
-        onClose={() => setShowClientModal(false)}
+        onClose={handleClientModalClose}
         onClientCreated={loadClientAndDiscountData}
       />
     </div>

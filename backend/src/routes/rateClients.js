@@ -40,18 +40,13 @@ router.get('/clients', authenticateToken, async (req, res) => {
 router.post('/clients', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const { name, email, contact, description } = req.body;
+    const clientData = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: 'Client name is required' });
+    if (!clientData.title) {
+      return res.status(400).json({ error: 'Client title is required' });
     }
 
-    const client = await rateClientsService.createClient(userId, {
-      name,
-      email,
-      contact,
-      description
-    });
+    const client = await rateClientsService.createClient(userId, clientData);
 
     res.status(201).json(client);
   } catch (error) {
@@ -68,14 +63,13 @@ router.put('/clients/:clientId', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { clientId } = req.params;
-    const { name, email, contact, description } = req.body;
+    const clientData = req.body;
 
-    const client = await rateClientsService.updateClient(userId, clientId, {
-      name,
-      email,
-      contact,
-      description
-    });
+    if (!clientData.title) {
+      return res.status(400).json({ error: 'Client title is required' });
+    }
+
+    const client = await rateClientsService.updateClient(userId, clientId, clientData);
 
     res.json(client);
   } catch (error) {
