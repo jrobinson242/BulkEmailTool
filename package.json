@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@microsoft/microsoft-graph-client": "^3.0.7"
+  }
+}

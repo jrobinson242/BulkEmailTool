@@ -1,34 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const { requireRole } = require('../middleware/role');
 const { executeQuery } = require('../config/database');
 const TemplateService = require('../services/templateService');
 const logger = require('../utils/logger');
 
-// Get all templates (user's own + global templates)
+// Get all templates (RBAC: regular users see only global, privileged see own + global)
+const { getUserRole } = require('../utils/userRole');
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    // Try with IsGlobal column first
-    let query = `
-      SELECT * FROM Templates 
-      WHERE UserId = @userId OR ISNULL(IsGlobal, 0) = 1
-      ORDER BY ISNULL(IsGlobal, 0) DESC, CreatedAt DESC
-    `;
-    
-    try {
-      const result = await executeQuery(query, { userId: req.userId });
-      res.json(result.recordset);
-    } catch (columnError) {
-      // If IsGlobal column doesn't exist, fallback to old query
-      logger.warn('IsGlobal column not found, using fallback query', { error: columnError.message });
-      query = `
-        SELECT * FROM Templates 
-        WHERE UserId = @userId
-        ORDER BY CreatedAt DESC
-      `;
-      const result = await executeQuery(query, { userId: req.userId });
-      res.json(result.recordset);
+    const role = await getUserRole(req.userId);
+    let query, params;
+    if (role === 'superuser' || role === 'template_creator') {
+      query = `SELECT * FROM Templates WHERE UserId = @userId OR ISNULL(IsGlobal, 0) = 1 ORDER BY ISNULL(IsGlobal, 0) DESC, CreatedAt DESC`;
+      params = { userId: req.userId };
+    } else {
+      query = `SELECT * FROM Templates WHERE ISNULL(IsGlobal, 0) = 1 ORDER BY CreatedAt DESC`;
+      params = {};
     }
+    const result = await executeQuery(query, params);
+    res.json(result.recordset);
   } catch (error) {
     logger.error('Failed to fetch templates', { error: error.message });
     res.status(500).json({ error: error.message });
@@ -78,7 +70,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // Create template
-router.post('/', authenticateToken, async (req, res) => {
+// Only allow superuser or template_creator to create templates
+router.post('/', authenticateToken, requireRole(['template_creator']), async (req, res) => {
   try {
     const { name, subject, body, description, isGlobal } = req.body;
     

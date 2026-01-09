@@ -134,4 +134,10 @@ export const queueAPI = {
   clear: () => api.delete('/queue/clear')
 };
 
+// Rate Calculator API
+export const rateCalculatorAPI = {
+  getClients: () => api.get('/rate-calculator/clients'),
+  getDiscounts: () => api.get('/rate-calculator/discounts')
+};
+
 export default api;

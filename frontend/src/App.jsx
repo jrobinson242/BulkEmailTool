@@ -8,7 +8,9 @@ import Contacts from './pages/Contacts.jsx';
 import Templates from './pages/Templates.jsx';
 import Campaigns from './pages/Campaigns.jsx';
 import CampaignDetail from './pages/CampaignDetail.jsx';
+import RateCalculator from './pages/RateCalculator.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
+import Admin from './pages/Admin.jsx';
 
 function App() {
   return (
@@ -24,6 +26,8 @@ function App() {
             <Route path="/templates" element={<PrivateRoute><Templates /></PrivateRoute>} />
             <Route path="/campaigns" element={<PrivateRoute><Campaigns /></PrivateRoute>} />
             <Route path="/campaigns/:id" element={<PrivateRoute><CampaignDetail /></PrivateRoute>} />
+            <Route path="/rate-calculator" element={<PrivateRoute><RateCalculator /></PrivateRoute>} />
+            <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

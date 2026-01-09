@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { templatesAPI } from '../services/api.jsx';
 import ReactQuill from 'react-quill';
@@ -130,8 +131,8 @@ const Templates = () => {
             <div style={{ marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                 <label style={{ fontWeight: 'bold' }}>Email Body *</label>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowHtmlSource(!showHtmlSource)}
                   className="btn"
                   style={{ padding: '5px 15px', fontSize: '12px', backgroundColor: '#6c757d', color: 'white' }}
@@ -185,7 +186,7 @@ const Templates = () => {
               </label>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
-             
+
               <button type="submit" className="btn btn-primary">
                 {editingId ? 'Update Template' : 'Create Template'}
               </button>
@@ -223,7 +224,7 @@ const Templates = () => {
                   <td>
                     <strong>{template.Name}</strong>
                     {template.IsGlobal && (
-                      <span 
+                      <span
                         style={{
                           marginLeft: '10px',
                           fontSize: '16px'
@@ -236,39 +237,39 @@ const Templates = () => {
                   <td>{template.Description}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button 
-                        onClick={() => handleView(template.TemplateId)} 
+                      <button
+                        onClick={() => handleView(template.TemplateId)}
                         title="View template"
-                        style={{ 
-                          background: 'none', 
-                          border: 'none', 
-                          cursor: 'pointer', 
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
                           fontSize: '18px',
                           padding: '4px'
                         }}
                       >
                         👁️
                       </button>
-                      <button 
-                        onClick={() => handleEdit(template.TemplateId)} 
+                      <button
+                        onClick={() => handleEdit(template.TemplateId)}
                         title="Edit template"
-                        style={{ 
-                          background: 'none', 
-                          border: 'none', 
-                          cursor: 'pointer', 
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
                           fontSize: '18px',
                           padding: '4px'
                         }}
                       >
                         ✏️
                       </button>
-                      <button 
-                        onClick={() => setConfirmDelete({ show: true, id: template.TemplateId })} 
+                      <button
+                        onClick={() => setConfirmDelete({ show: true, id: template.TemplateId })}
                         title="Delete template"
-                        style={{ 
-                          background: 'none', 
-                          border: 'none', 
-                          cursor: 'pointer', 
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
                           fontSize: '18px',
                           padding: '4px'
                         }}
@@ -306,42 +307,42 @@ const Templates = () => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2>Template Details</h2>
-              <button 
-                onClick={() => setViewingTemplate(null)} 
+              <button
+                onClick={() => setViewingTemplate(null)}
                 className="btn"
                 style={{ backgroundColor: '#6c757d', color: 'white' }}
               >
                 Close
               </button>
             </div>
-            
+
             <div style={{ marginBottom: '15px' }}>
               <strong>Name:</strong>
               <p style={{ marginTop: '5px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                 {viewingTemplate.Name}
               </p>
             </div>
-            
+
             <div style={{ marginBottom: '15px' }}>
               <strong>Subject:</strong>
               <p style={{ marginTop: '5px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                 {viewingTemplate.Subject}
               </p>
             </div>
-            
+
             <div style={{ marginBottom: '15px' }}>
               <strong>Body:</strong>
-              <div style={{ 
-                marginTop: '5px', 
-                padding: '10px', 
-                backgroundColor: '#f8f9fa', 
+              <div style={{
+                marginTop: '5px',
+                padding: '10px',
+                backgroundColor: '#f8f9fa',
                 borderRadius: '4px',
                 border: '1px solid #dee2e6'
               }}
               dangerouslySetInnerHTML={{ __html: viewingTemplate.Body }}
               />
             </div>
-            
+
             {viewingTemplate.Description && (
               <div style={{ marginBottom: '15px' }}>
                 <strong>Description:</strong>
@@ -350,19 +351,19 @@ const Templates = () => {
                 </p>
               </div>
             )}
-            
+
             <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
-              <button 
+              <button
                 onClick={() => {
                   handleEdit(viewingTemplate.TemplateId);
-                }} 
+                }}
                 className="btn"
                 style={{ backgroundColor: '#ffc107', color: '#000' }}
               >
                 Edit Template
               </button>
-              <button 
-                onClick={() => setViewingTemplate(null)} 
+              <button
+                onClick={() => setViewingTemplate(null)}
                 className="btn"
                 style={{ backgroundColor: '#6c757d', color: 'white' }}
               >

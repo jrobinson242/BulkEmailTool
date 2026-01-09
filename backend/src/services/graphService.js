@@ -1,78 +1,45 @@
+
+
 const { Client } = require('@microsoft/microsoft-graph-client');
-const { ClientSecretCredential } = require('@azure/identity');
+require('isomorphic-fetch');
 const logger = require('../utils/logger');
 
 class GraphService {
-  constructor(accessToken, userEmail = null) {
+  constructor(accessToken) {
     this.accessToken = accessToken;
-    this.userEmail = userEmail;
     this.client = Client.init({
       authProvider: (done) => {
-        done(null, this.accessToken);
+        if (!accessToken) {
+          done(new Error('No access token provided'));
+        } else {
+          done(null, accessToken);
+        }
       }
     });
   }
 
-  // Get user's contact folders
-  async getContactFolders() {
+  // Search Azure AD users in rsc.com tenant
+  async searchUsers(query) {
     try {
-      // Get top-level contact folders
-      const folders = await this.client
-        .api('/me/contactFolders')
-        .select('id,displayName,parentFolderId')
+      // Use Microsoft Graph API to search users, filter to rsc.com domain
+      const result = await this.client
+        .api('/users')
+        .filter(`startswith(mail,'${query}') or startswith(userPrincipalName,'${query}') or startswith(displayName,'${query}')`)
+        .select('id,displayName,mail,userPrincipalName')
+        .top(15)
         .get();
-      
-      logger.info(`Retrieved ${folders.value.length} contact folders`);
-      
-      // Also get child folders for each folder (nested folders/lists)
-      const allFolders = [...folders.value];
-      
-      for (const folder of folders.value) {
-        try {
-          const childFolders = await this.client
-            .api(`/me/contactFolders/${folder.id}/childFolders`)
-            .select('id,displayName,parentFolderId')
-            .get();
-          
-          if (childFolders.value && childFolders.value.length > 0) {
-            logger.info(`Found ${childFolders.value.length} child folders in ${folder.displayName}`);
-            allFolders.push(...childFolders.value);
-          }
-        } catch (childError) {
-          logger.error(`Failed to fetch child folders for ${folder.displayName}`, { error: childError.message });
-          // Continue with other folders
-        }
-      }
-      
-      // Try to get People/Contacts folder specifically (where contact lists often live)
-      try {
-        logger.info('Attempting to fetch from wellKnownFolders...');
-        const wellKnownFolder = await this.client
-          .api('/me/contactFolders/Contacts/childFolders')
-          .select('id,displayName,parentFolderId')
-          .get();
-        
-        if (wellKnownFolder.value && wellKnownFolder.value.length > 0) {
-          logger.info(`Found ${wellKnownFolder.value.length} folders in well-known Contacts folder`);
-          // Add any that aren't already in our list
-          const existingIds = new Set(allFolders.map(f => f.id));
-          for (const folder of wellKnownFolder.value) {
-            if (!existingIds.has(folder.id)) {
-              allFolders.push(folder);
-            }
-          }
-        }
-      } catch (wellKnownError) {
-        logger.error('Failed to fetch well-known Contacts folder', { error: wellKnownError.message });
-      }
-      
-      logger.info(`Total folders (including nested): ${allFolders.length}`);
-      return allFolders;
+      // Only return users with rsc.com domain
+      return (result.value || []).filter(u =>
+        (u.mail && u.mail.toLowerCase().endsWith('@rsc.com')) ||
+        (u.userPrincipalName && u.userPrincipalName.toLowerCase().endsWith('@rsc.com'))
+      );
     } catch (error) {
-      logger.error('Failed to fetch contact folders', { error: error.message });
+      logger.error('Failed to search Azure AD users', { error: error.message });
       throw error;
     }
   }
+
+
 
   // Get contacts from a specific folder
   async getContactsFromFolder(folderId, top = 1000) {
@@ -242,10 +209,14 @@ class GraphService {
         .api('/me')
         .select('id,displayName,mail,userPrincipalName')
         .get();
-      
       return user;
     } catch (error) {
-      logger.error('Failed to fetch user profile', { error: error.message });
+      logger.error('Failed to fetch user profile', {
+        error: error.message,
+        stack: error.stack,
+        accessToken: this.accessToken ? this.accessToken.substring(0, 20) + '...' : 'none',
+        response: error.response ? error.response.data || error.response.body : undefined
+      });
       throw error;
     }
   }

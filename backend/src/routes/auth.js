@@ -92,12 +92,19 @@ router.post('/refresh', async (req, res) => {
 });
 
 // Get current user profile
+const { getPool } = require('../config/database');
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const GraphService = require('../services/graphService');
     const graphService = new GraphService(req.accessToken);
     const profile = await graphService.getUserProfile();
-    res.json(profile);
+    // Fetch role from Users table
+    const pool = await getPool();
+    const result = await pool.request()
+      .input('userId', req.userId)
+      .query('SELECT Role FROM Users WHERE UserId = @userId');
+    const role = result.recordset.length ? result.recordset[0].Role : 'user';
+    res.json({ ...profile, role });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

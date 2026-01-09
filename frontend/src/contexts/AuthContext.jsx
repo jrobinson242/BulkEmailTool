@@ -6,6 +6,8 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Role override for superuser preview
+  const [roleOverride, setRoleOverride] = useState(null);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -60,13 +62,20 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+
+  // Compute effective role (override if set)
+  const effectiveRole = roleOverride || user?.role;
+
   const value = {
     user,
     loading,
     login,
     logout,
     handleCallback,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    effectiveRole,
+    roleOverride,
+    setRoleOverride
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

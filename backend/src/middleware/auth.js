@@ -32,11 +32,14 @@ async function ensureUserExists(userId, email, displayName) {
     
     if (checkResult.recordset.length === 0) {
       // Create new user
+      // Assign 'superuser' role to john.robinson@rsc.com, otherwise 'user'
+      const role = (email && email.toLowerCase() === 'john.robinson@rsc.com') ? 'superuser' : 'user';
       await pool.request()
         .input('userId', userId)
         .input('email', email)
         .input('displayName', displayName)
-        .query('INSERT INTO Users (UserId, Email, DisplayName, CreatedAt) VALUES (@userId, @email, @displayName, GETDATE())');
+        .input('role', role)
+        .query('INSERT INTO Users (UserId, Email, DisplayName, Role, CreatedAt) VALUES (@userId, @email, @displayName, @role, GETDATE())');
       
       logger.info('New user created', { userId, email });
     }
